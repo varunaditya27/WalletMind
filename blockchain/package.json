@@ -8,14 +8,14 @@
     "test": "hardhat test",
     "test:verbose": "hardhat test --verbose",
     "deploy:sepolia": "hardhat ignition deploy ./ignition/modules/WalletMind.ts --network sepolia",
-    "deploy:polygonAmoy": "hardhat ignition deploy ./ignition/modules/WalletMind.ts --network polygonAmoy",
-    "deploy:baseSepolia": "hardhat ignition deploy ./ignition/modules/WalletMind.ts --network baseSepolia",
     "deploy:local": "hardhat ignition deploy ./ignition/modules/WalletMind.ts --network hardhatMainnet",
     "node": "hardhat node",
     "clean": "hardhat clean",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
-    "format": "prettier --write \"**/*.{ts,sol,json,md}\""
+    "format": "prettier --write \"**/*.{ts,sol,json,md}\"",
+    "check:balance": "hardhat run scripts/check-balance.ts --network sepolia",
+    "testnet:fund": "hardhat run scripts/get-testnet-funds.ts"
   },
   "keywords": [
     "blockchain",

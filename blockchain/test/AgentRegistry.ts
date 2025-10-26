@@ -1,4 +1,4 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
+import { describe, it } from "node:test";
 import { expect } from "chai";
 import hre from "hardhat";
 import { getAddress } from "viem";
@@ -6,11 +6,13 @@ import { getAddress } from "viem";
 describe("AgentRegistry", function () {
   // Fixture to deploy contract
   async function deployAgentRegistryFixture() {
-    const [admin, agent1, agent2, agent3] = await hre.viem.getWalletClients();
+    const { viem } = await hre.network.connect();
     
-    const agentRegistry = await hre.viem.deployContract("AgentRegistry");
+    const [admin, agent1, agent2, agent3] = await viem.getWalletClients();
     
-    const publicClient = await hre.viem.getPublicClient();
+    const agentRegistry = await viem.deployContract("AgentRegistry");
+    
+    const publicClient = await viem.getPublicClient();
     
     return {
       agentRegistry,
@@ -24,19 +26,19 @@ describe("AgentRegistry", function () {
 
   describe("Deployment", function () {
     it("Should set the right admin", async function () {
-      const { agentRegistry, admin } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, admin } = await deployAgentRegistryFixture();
       expect(await agentRegistry.read.admin()).to.equal(getAddress(admin.account.address));
     });
 
     it("Should initialize with zero agents", async function () {
-      const { agentRegistry } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry } = await deployAgentRegistryFixture();
       expect(await agentRegistry.read.agentCount()).to.equal(0n);
     });
   });
 
   describe("Agent Registration (FR-012)", function () {
     it("Should register a new agent", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       const metadata = JSON.stringify({
         name: "AI Agent 1",
@@ -56,7 +58,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should emit AgentRegistered event", async function () {
-      const { agentRegistry, agent1, publicClient } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, publicClient } = await deployAgentRegistryFixture();
       
       const metadata = "{ \"name\": \"Test Agent\" }";
       
@@ -72,7 +74,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should increment agent count", async function () {
-      const { agentRegistry, agent1, agent2 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, agent2 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata1"], {
         account: agent1.account,
@@ -86,7 +88,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should prevent duplicate registration", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata1"], {
         account: agent1.account,
@@ -100,7 +102,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should require metadata", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await expect(
         agentRegistry.write.registerAgent([""], {
@@ -112,7 +114,7 @@ describe("AgentRegistry", function () {
 
   describe("Agent Discovery", function () {
     it("Should return all registered agents", async function () {
-      const { agentRegistry, agent1, agent2, agent3 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, agent2, agent3 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["meta1"], { account: agent1.account });
       await agentRegistry.write.registerAgent(["meta2"], { account: agent2.account });
@@ -126,7 +128,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should return only active agents", async function () {
-      const { agentRegistry, agent1, agent2, agent3 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, agent2, agent3 } = await deployAgentRegistryFixture();
       
       // Register agents
       await agentRegistry.write.registerAgent(["meta1"], { account: agent1.account });
@@ -146,7 +148,7 @@ describe("AgentRegistry", function () {
 
   describe("Reputation Management", function () {
     it("Should update reputation on successful transaction", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -162,7 +164,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should decrease reputation on failed transaction", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -178,7 +180,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should cap reputation at 1000", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -194,7 +196,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should not go below 0 reputation", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -210,7 +212,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should calculate success rate correctly", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -230,7 +232,7 @@ describe("AgentRegistry", function () {
 
   describe("Service Management (FR-012)", function () {
     it("Should register a service offering", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -252,7 +254,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should prevent service registration without agent registration", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await expect(
         agentRegistry.write.registerService(["service1", 1000n, "desc"], {
@@ -262,7 +264,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should update service availability", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -283,7 +285,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should track multiple services per agent", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -306,7 +308,7 @@ describe("AgentRegistry", function () {
 
   describe("Agent Status Management", function () {
     it("Should allow agent to set active status", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -321,7 +323,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should emit AgentStatusChanged event", async function () {
-      const { agentRegistry, agent1, publicClient } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, publicClient } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["metadata"], {
         account: agent1.account,
@@ -341,7 +343,7 @@ describe("AgentRegistry", function () {
 
   describe("Metadata Updates", function () {
     it("Should allow registered agent to update metadata", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.registerAgent(["old metadata"], {
         account: agent1.account,
@@ -357,7 +359,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should require agent to be registered for metadata update", async function () {
-      const { agentRegistry, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
       await expect(
         agentRegistry.write.updateMetadata(["new metadata"], {
@@ -369,7 +371,7 @@ describe("AgentRegistry", function () {
 
   describe("Access Control", function () {
     it("Should allow admin transfer", async function () {
-      const { agentRegistry, admin, agent1 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, admin, agent1 } = await deployAgentRegistryFixture();
       
       await agentRegistry.write.transferAdmin([agent1.account.address], {
         account: admin.account,
@@ -379,7 +381,7 @@ describe("AgentRegistry", function () {
     });
 
     it("Should reject admin transfer from non-admin", async function () {
-      const { agentRegistry, agent1, agent2 } = await loadFixture(deployAgentRegistryFixture);
+      const { agentRegistry, agent1, agent2 } = await deployAgentRegistryFixture();
       
       await expect(
         agentRegistry.write.transferAdmin([agent2.account.address], {

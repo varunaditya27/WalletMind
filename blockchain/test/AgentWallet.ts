@@ -1,4 +1,4 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
+import { describe, it } from "node:test";
 import { expect } from "chai";
 import hre from "hardhat";
 import { getAddress, parseEther, keccak256, toHex } from "viem";
@@ -6,11 +6,13 @@ import { getAddress, parseEther, keccak256, toHex } from "viem";
 describe("AgentWallet", function () {
   // Fixture to deploy contract
   async function deployAgentWalletFixture() {
-    const [owner, agent, recipient] = await hre.viem.getWalletClients();
+    const { viem } = await hre.network.connect();
     
-    const agentWallet = await hre.viem.deployContract("AgentWallet");
+    const [owner, agent, recipient] = await viem.getWalletClients();
     
-    const publicClient = await hre.viem.getPublicClient();
+    const agentWallet = await viem.deployContract("AgentWallet");
+    
+    const publicClient = await viem.getPublicClient();
     
     return {
       agentWallet,
@@ -23,25 +25,25 @@ describe("AgentWallet", function () {
 
   describe("Deployment", function () {
     it("Should set the right owner", async function () {
-      const { agentWallet, owner } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner } = await deployAgentWalletFixture();
       expect(await agentWallet.read.owner()).to.equal(getAddress(owner.account.address));
     });
 
     it("Should initialize with default spending limit", async function () {
-      const { agentWallet } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet } = await deployAgentWalletFixture();
       const limit = await agentWallet.read.spendingLimits(["0x0000000000000000000000000000000000000000"]);
       expect(limit).to.equal(parseEther("0.1"));
     });
 
     it("Should not be paused initially", async function () {
-      const { agentWallet } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet } = await deployAgentWalletFixture();
       expect(await agentWallet.read.paused()).to.be.false;
     });
   });
 
   describe("Decision Logging (FR-007)", function () {
     it("Should log a decision successfully", async function () {
-      const { agentWallet, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent } = await deployAgentWalletFixture();
       
       const decisionData = "AI decision: Transfer 0.01 ETH to recipient for API payment";
       const decisionHash = keccak256(toHex(decisionData));
@@ -59,7 +61,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should emit DecisionLogged event", async function () {
-      const { agentWallet, agent, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent, publicClient } = await deployAgentWalletFixture();
       
       const decisionHash = keccak256(toHex("test decision"));
       const ipfsCid = "QmTest";
@@ -77,7 +79,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should reject invalid decision hash", async function () {
-      const { agentWallet, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent } = await deployAgentWalletFixture();
       
       await expect(
         agentWallet.write.logDecision(["0x0000000000000000000000000000000000000000000000000000000000000000", "QmTest"], {
@@ -87,7 +89,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should reject empty IPFS CID", async function () {
-      const { agentWallet, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent } = await deployAgentWalletFixture();
       
       const decisionHash = keccak256(toHex("test"));
       
@@ -99,7 +101,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should prevent duplicate decision logging", async function () {
-      const { agentWallet, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent } = await deployAgentWalletFixture();
       
       const decisionHash = keccak256(toHex("test"));
       
@@ -117,7 +119,7 @@ describe("AgentWallet", function () {
 
   describe("Transaction Execution (FR-005, FR-007)", function () {
     it("Should execute a pre-logged decision", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund the wallet
       await owner.sendTransaction({
@@ -148,7 +150,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should enforce spending limits (NFR-005)", async function () {
-      const { agentWallet, owner, agent, recipient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -172,7 +174,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should reject execution without prior decision logging", async function () {
-      const { agentWallet, owner, recipient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, recipient } = await deployAgentWalletFixture();
       
       const decisionHash = keccak256(toHex("unlogged decision"));
       
@@ -185,7 +187,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should prevent double execution", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -216,7 +218,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should emit DecisionExecuted and TransactionRecorded events (FR-008)", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -253,7 +255,7 @@ describe("AgentWallet", function () {
 
   describe("Spending Limits (NFR-005)", function () {
     it("Should allow owner to update spending limits", async function () {
-      const { agentWallet, owner } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner } = await deployAgentWalletFixture();
       
       const newLimit = parseEther("0.5");
       await agentWallet.write.setSpendingLimit(
@@ -266,7 +268,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should track total spent amount", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -293,7 +295,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should allow owner to reset spent amount", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund and execute transaction
       await owner.sendTransaction({
@@ -318,14 +320,14 @@ describe("AgentWallet", function () {
 
   describe("Emergency Pause (NFR-005)", function () {
     it("Should allow owner to pause contract", async function () {
-      const { agentWallet, owner } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner } = await deployAgentWalletFixture();
       
       await agentWallet.write.setPaused([true], { account: owner.account });
       expect(await agentWallet.read.paused()).to.be.true;
     });
 
     it("Should prevent operations when paused", async function () {
-      const { agentWallet, owner, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent } = await deployAgentWalletFixture();
       
       await agentWallet.write.setPaused([true], { account: owner.account });
       
@@ -339,7 +341,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should allow unpausing", async function () {
-      const { agentWallet, owner, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent } = await deployAgentWalletFixture();
       
       // Pause
       await agentWallet.write.setPaused([true], { account: owner.account });
@@ -360,7 +362,7 @@ describe("AgentWallet", function () {
 
   describe("Transaction History (FR-008)", function () {
     it("Should track transaction count", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -384,7 +386,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should store complete transaction records", async function () {
-      const { agentWallet, owner, agent, recipient, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent, recipient, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       await owner.sendTransaction({
@@ -415,7 +417,7 @@ describe("AgentWallet", function () {
 
   describe("Access Control", function () {
     it("Should only allow owner to execute decisions", async function () {
-      const { agentWallet, agent, recipient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, agent, recipient } = await deployAgentWalletFixture();
       
       const decisionHash = keccak256(toHex("access test"));
       await agentWallet.write.logDecision([decisionHash, "QmAccess"], {
@@ -431,7 +433,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should allow ownership transfer", async function () {
-      const { agentWallet, owner, agent } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, agent } = await deployAgentWalletFixture();
       
       await agentWallet.write.transferOwnership([agent.account.address], {
         account: owner.account,
@@ -443,7 +445,7 @@ describe("AgentWallet", function () {
 
   describe("Wallet Functions", function () {
     it("Should receive ETH", async function () {
-      const { agentWallet, owner } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner } = await deployAgentWalletFixture();
       
       const amount = parseEther("1.0");
       await owner.sendTransaction({
@@ -456,7 +458,7 @@ describe("AgentWallet", function () {
     });
 
     it("Should allow owner to withdraw", async function () {
-      const { agentWallet, owner, publicClient } = await loadFixture(deployAgentWalletFixture);
+      const { agentWallet, owner, publicClient } = await deployAgentWalletFixture();
       
       // Fund wallet
       const amount = parseEther("1.0");
