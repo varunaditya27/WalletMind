@@ -94,21 +94,27 @@ describe("AgentRegistry", function () {
         account: agent1.account,
       });
       
-      await expect(
-        agentRegistry.write.registerAgent(["metadata2"], {
+      try {
+        await agentRegistry.write.registerAgent(["metadata2"], {
           account: agent1.account,
-        })
-      ).to.be.rejectedWith("AgentRegistry: already registered");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentRegistry: already registered");
+      }
     });
 
     it("Should require metadata", async function () {
       const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
-      await expect(
-        agentRegistry.write.registerAgent([""], {
+      try {
+        await agentRegistry.write.registerAgent([""], {
           account: agent1.account,
-        })
-      ).to.be.rejectedWith("AgentRegistry: metadata required");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentRegistry: metadata required");
+      }
     });
   });
 
@@ -256,11 +262,14 @@ describe("AgentRegistry", function () {
     it("Should prevent service registration without agent registration", async function () {
       const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
-      await expect(
-        agentRegistry.write.registerService(["service1", 1000n, "desc"], {
+      try {
+        await agentRegistry.write.registerService(["service1", 1000n, "desc"], {
           account: agent1.account,
-        })
-      ).to.be.rejectedWith("AgentRegistry: agent not registered");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentRegistry: agent not registered");
+      }
     });
 
     it("Should update service availability", async function () {
@@ -361,11 +370,14 @@ describe("AgentRegistry", function () {
     it("Should require agent to be registered for metadata update", async function () {
       const { agentRegistry, agent1 } = await deployAgentRegistryFixture();
       
-      await expect(
-        agentRegistry.write.updateMetadata(["new metadata"], {
+      try {
+        await agentRegistry.write.updateMetadata(["new metadata"], {
           account: agent1.account,
-        })
-      ).to.be.rejectedWith("AgentRegistry: agent not registered");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentRegistry: agent not registered");
+      }
     });
   });
 
@@ -383,11 +395,14 @@ describe("AgentRegistry", function () {
     it("Should reject admin transfer from non-admin", async function () {
       const { agentRegistry, agent1, agent2 } = await deployAgentRegistryFixture();
       
-      await expect(
-        agentRegistry.write.transferAdmin([agent2.account.address], {
+      try {
+        await agentRegistry.write.transferAdmin([agent2.account.address], {
           account: agent1.account,
-        })
-      ).to.be.rejectedWith("AgentRegistry: caller is not admin");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentRegistry: caller is not admin");
+      }
     });
   });
 });

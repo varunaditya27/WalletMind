@@ -81,11 +81,14 @@ describe("AgentWallet", function () {
     it("Should reject invalid decision hash", async function () {
       const { agentWallet, agent } = await deployAgentWalletFixture();
       
-      await expect(
-        agentWallet.write.logDecision(["0x0000000000000000000000000000000000000000000000000000000000000000", "QmTest"], {
+      try {
+        await agentWallet.write.logDecision(["0x0000000000000000000000000000000000000000000000000000000000000000", "QmTest"], {
           account: agent.account,
-        })
-      ).to.be.rejectedWith("AgentWallet: invalid decision hash");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: invalid decision hash");
+      }
     });
 
     it("Should reject empty IPFS CID", async function () {
@@ -93,11 +96,14 @@ describe("AgentWallet", function () {
       
       const decisionHash = keccak256(toHex("test"));
       
-      await expect(
-        agentWallet.write.logDecision([decisionHash, ""], {
+      try {
+        await agentWallet.write.logDecision([decisionHash, ""], {
           account: agent.account,
-        })
-      ).to.be.rejectedWith("AgentWallet: IPFS CID required");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: IPFS CID required");
+      }
     });
 
     it("Should prevent duplicate decision logging", async function () {
@@ -109,11 +115,14 @@ describe("AgentWallet", function () {
         account: agent.account,
       });
       
-      await expect(
-        agentWallet.write.logDecision([decisionHash, "QmTest"], {
+      try {
+        await agentWallet.write.logDecision([decisionHash, "QmTest"], {
           account: agent.account,
-        })
-      ).to.be.rejectedWith("AgentWallet: decision already logged");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: decision already logged");
+      }
     });
   });
 
@@ -165,12 +174,15 @@ describe("AgentWallet", function () {
       });
       
       // Try to exceed limit (default is 0.1 ETH)
-      await expect(
-        agentWallet.write.verifyAndExecute(
+      try {
+        await agentWallet.write.verifyAndExecute(
           [decisionHash, recipient.account.address, parseEther("0.15")],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("AgentWallet: spending limit exceeded");
+        );
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: spending limit exceeded");
+      }
     });
 
     it("Should reject execution without prior decision logging", async function () {
@@ -178,12 +190,15 @@ describe("AgentWallet", function () {
       
       const decisionHash = keccak256(toHex("unlogged decision"));
       
-      await expect(
-        agentWallet.write.verifyAndExecute(
+      try {
+        await agentWallet.write.verifyAndExecute(
           [decisionHash, recipient.account.address, parseEther("0.01")],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("AgentWallet: decision not logged");
+        );
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: decision not logged");
+      }
     });
 
     it("Should prevent double execution", async function () {
@@ -209,12 +224,15 @@ describe("AgentWallet", function () {
       await publicClient.waitForTransactionReceipt({ hash });
       
       // Try to execute again
-      await expect(
-        agentWallet.write.verifyAndExecute(
+      try {
+        await agentWallet.write.verifyAndExecute(
           [decisionHash, recipient.account.address, parseEther("0.01")],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("AgentWallet: decision already executed");
+        );
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: decision already executed");
+      }
     });
 
     it("Should emit DecisionExecuted and TransactionRecorded events (FR-008)", async function () {
@@ -333,11 +351,14 @@ describe("AgentWallet", function () {
       
       const decisionHash = keccak256(toHex("paused test"));
       
-      await expect(
-        agentWallet.write.logDecision([decisionHash, "QmPaused"], {
+      try {
+        await agentWallet.write.logDecision([decisionHash, "QmPaused"], {
           account: agent.account,
-        })
-      ).to.be.rejectedWith("AgentWallet: contract is paused");
+        });
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: contract is paused");
+      }
     });
 
     it("Should allow unpausing", async function () {
@@ -424,12 +445,15 @@ describe("AgentWallet", function () {
         account: agent.account,
       });
       
-      await expect(
-        agentWallet.write.verifyAndExecute(
+      try {
+        await agentWallet.write.verifyAndExecute(
           [decisionHash, recipient.account.address, parseEther("0.01")],
           { account: agent.account }
-        )
-      ).to.be.rejectedWith("AgentWallet: caller is not the owner");
+        );
+        throw new Error("Should have reverted");
+      } catch (error: any) {
+        expect(error.message).to.include("AgentWallet: caller is not the owner");
+      }
     });
 
     it("Should allow ownership transfer", async function () {

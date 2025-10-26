@@ -10,8 +10,7 @@ import { join } from "path";
  * and saves contract addresses to deployed-contracts.json
  */
 async function main() {
-  const network = hre.network.name;
-  console.log(`\n🚀 Deploying WalletMind contracts to ${network}...`);
+  console.log(`\n🚀 Deploying WalletMind contracts...`);
 
   // Connect to network and get viem
   const { viem } = await hre.network.connect();
@@ -20,6 +19,16 @@ async function main() {
   const [deployer] = await viem.getWalletClients();
   const publicClient = await viem.getPublicClient();
   
+  // Get network from chain ID
+  const chainId = publicClient.chain.id;
+  const networkMap: Record<number, string> = {
+    1: "mainnet",
+    11155111: "sepolia",
+    31337: "hardhat",
+  };
+  const network = networkMap[chainId] || `chain-${chainId}`;
+  
+  console.log(`📡 Network: ${network} (Chain ID: ${chainId})`);
   console.log(`📝 Deployer address: ${deployer.account.address}`);
   
   // Check balance
@@ -32,11 +41,17 @@ async function main() {
     console.warn("⚠️  Warning: Low balance. You may need to fund your account.");
   }
 
-  // Deploy using Hardhat Ignition
-  console.log("\n📦 Deploying contracts using Hardhat Ignition...");
+  // Deploy contracts directly with viem (simpler than ignition for basic deploys)
+  console.log("\n📦 Deploying contracts...");
   
-  const { agentWallet, agentRegistry } = await hre.ignition.deploy(
-    await import("../ignition/modules/WalletMind.js")
+  console.log("   Deploying AgentWallet...");
+  const agentWallet = await viem.deployContract("AgentWallet", 
+    [deployer.account.address, deployer.account.address] as any
+  );
+  
+  console.log("   Deploying AgentRegistry...");
+  const agentRegistry = await viem.deployContract("AgentRegistry",
+    [deployer.account.address] as any
   );
 
   console.log(`\n✅ Deployment complete!`);
