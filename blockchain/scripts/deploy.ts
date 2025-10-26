@@ -13,9 +13,12 @@ async function main() {
   const network = hre.network.name;
   console.log(`\n🚀 Deploying WalletMind contracts to ${network}...`);
 
+  // Connect to network and get viem
+  const { viem } = await hre.network.connect();
+  
   // Get deployer account
-  const [deployer] = await hre.viem.getWalletClients();
-  const publicClient = await hre.viem.getPublicClient();
+  const [deployer] = await viem.getWalletClients();
+  const publicClient = await viem.getPublicClient();
   
   console.log(`📝 Deployer address: ${deployer.account.address}`);
   

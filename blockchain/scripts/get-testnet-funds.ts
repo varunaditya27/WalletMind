@@ -1,15 +1,10 @@
 import { parseEther } from "viem";
 
 /**
- * Script to request testnet funds from faucets
- * 
- * Networks supported:
- * - Ethereum Sepolia
- * - Polygon Amoy
- * - Base Sepolia
+ * Script to request testnet funds from Sepolia faucets
  */
 async function main() {
-  console.log("\n💰 Testnet Faucet Information\n");
+  console.log("\n💰 Sepolia Testnet Faucet Information\n");
   console.log("=" .repeat(60));
 
   const account = process.env.SEPOLIA_PRIVATE_KEY 
@@ -17,48 +12,47 @@ async function main() {
     : "Not configured";
 
   console.log(`\n📝 Your account: ${account}`);
-  console.log("\n🚰 Faucets for Each Network:\n");
+  console.log("\n🚰 Sepolia ETH Faucets:\n");
 
-  console.log("1️⃣  ETHEREUM SEPOLIA");
-  console.log("   Faucet URLs:");
-  console.log("   - https://sepoliafaucet.com/");
-  console.log("   - https://www.alchemy.com/faucets/ethereum-sepolia");
-  console.log("   - https://cloud.google.com/application/web3/faucet/ethereum/sepolia");
+  console.log("1️⃣  Alchemy Faucet (Recommended)");
+  console.log("   URL: https://sepoliafaucet.com/");
   console.log("   Amount: 0.5 ETH per request");
-  console.log("   Requirements: GitHub/Twitter account\n");
+  console.log("   Requirements: Alchemy account (free)\n");
 
-  console.log("2️⃣  POLYGON AMOY (Mumbai successor)");
-  console.log("   Faucet URLs:");
-  console.log("   - https://faucet.polygon.technology/");
-  console.log("   - https://www.alchemy.com/faucets/polygon-amoy");
-  console.log("   Amount: 0.5 MATIC per request");
-  console.log("   Requirements: Alchemy account\n");
+  console.log("2️⃣  QuickNode Faucet");
+  console.log("   URL: https://faucet.quicknode.com/ethereum/sepolia");
+  console.log("   Amount: 0.05-0.1 ETH per request");
+  console.log("   Requirements: Twitter account\n");
 
-  console.log("3️⃣  BASE SEPOLIA");
-  console.log("   Faucet URLs:");
-  console.log("   - https://www.alchemy.com/faucets/base-sepolia");
-  console.log("   - Get Sepolia ETH first, then bridge to Base");
-  console.log("   Amount: 0.1 ETH per request");
-  console.log("   Requirements: Alchemy account\n");
+  console.log("3️⃣  Google Cloud Faucet");
+  console.log("   URL: https://cloud.google.com/application/web3/faucet/ethereum/sepolia");
+  console.log("   Amount: 0.05 ETH per request");
+  console.log("   Requirements: Google account\n");
+
+  console.log("4️⃣  Infura Faucet");
+  console.log("   URL: https://www.infura.io/faucet/sepolia");
+  console.log("   Amount: 0.5 ETH per request");
+  console.log("   Requirements: Infura account\n");
 
   console.log("=" .repeat(60));
 
   console.log("\n💡 Tips:");
-  console.log("   1. Request from multiple faucets for more funds");
-  console.log("   2. You need funds on ALL networks for full testing");
-  console.log("   3. Keep some ETH for gas fees (~0.05 ETH recommended)");
-  console.log("   4. Faucets usually have rate limits (1 request per 24h)");
+  console.log("   • Request from multiple faucets for more funds");
+  console.log("   • Keep at least 0.05 ETH for gas fees");
+  console.log("   • Most faucets have rate limits (1 request per 24h)");
+  console.log("   • Testnet ETH has NO real-world value");
 
-  console.log("\n📋 Next Steps:");
-  console.log("   1. Visit the faucet URLs above");
-  console.log("   2. Enter your wallet address");
-  console.log("   3. Complete any required verification");
-  console.log("   4. Wait for funds to arrive (usually 30 seconds - 2 minutes)");
-  console.log("   5. Check your balance: npx hardhat run scripts/check-balance.ts\n");
+  console.log("\n📋 Steps to Get Testnet ETH:");
+  console.log("   1. Visit one of the faucet URLs above");
+  console.log("   2. Connect your Metamask wallet OR paste your address");
+  console.log("   3. Complete any required verification (Twitter, etc.)");
+  console.log("   4. Wait for funds (usually 30 seconds - 2 minutes)");
+  console.log("   5. Check balance: npm run check:balance\n");
 
-  console.log("🔗 Additional Resources:");
-  console.log("   - Faucet aggregator: https://faucetlink.to/");
-  console.log("   - Check testnet status: https://chainlist.org/\n");
+  console.log("🔗 Useful Links:");
+  console.log("   • Sepolia Explorer: https://sepolia.etherscan.io/");
+  console.log("   • Alchemy Dashboard: https://dashboard.alchemy.com/");
+  console.log("   • Metamask: https://metamask.io/\n");
 }
 
 main()
