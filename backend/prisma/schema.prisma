@@ -1,1 +1,351 @@
-# Prisma schema for PostgreSQL database - defines Agent, Decision, Transaction models
+// Prisma schema for WalletMind PostgreSQL database
+// Comprehensive schema for users, wallets, agents, decisions, transactions, and audit logs
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== User Management (FR-007) ==========
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  username      String   @unique
+  passwordHash  String   @map("password_hash")
+  role          UserRole @default(USER)
+  isActive      Boolean  @default(true) @map("is_active")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+  
+  // Relationships
+  wallets       Wallet[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  sessions      Session[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  DEVELOPER
+  USER
+  AGENT
+  READONLY
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ========== Wallet Management (FR-002) ==========
+
+model Wallet {
+  id              String       @id @default(uuid())
+  userId          String       @map("user_id")
+  address         String       @unique
+  walletType      WalletType   @default(SMART_CONTRACT) @map("wallet_type")
+  network         Network      @default(SEPOLIA)
+  encryptedKey    String?      @map("encrypted_key") // Encrypted private key
+  mnemonicId      String?      @map("mnemonic_id") // Reference to KeyManager storage
+  accountIndex    Int          @default(0) @map("account_index")
+  balance         Decimal      @default(0) @db.Decimal(78, 0) // Wei balance
+  isActive        Boolean      @default(true) @map("is_active")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  
+  // Relationships
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agents          Agent[]
+  transactions    Transaction[]
+  
+  @@index([userId])
+  @@index([address])
+  @@index([network])
+  @@map("wallets")
+}
+
+enum WalletType {
+  SMART_CONTRACT  // ERC-4337 Safe wallet
+  EOA             // Externally Owned Account
+  MULTISIG        // Multi-signature wallet
+}
+
+enum Network {
+  SEPOLIA
+  POLYGON_AMOY
+  BASE_GOERLI
+  MAINNET         // Future
+  POLYGON_MAINNET // Future
+  BASE_MAINNET    // Future
+}
+
+// ========== Agent Management (FR-003, FR-012) ==========
+
+model Agent {
+  id                  String       @id @default(uuid())
+  walletId            String       @map("wallet_id")
+  name                String
+  agentType           AgentType    @map("agent_type")
+  status              AgentStatus  @default(INACTIVE)
+  metadata            Json?        // Capabilities, services, etc.
+  reputation          Int          @default(0)
+  totalTransactions   Int          @default(0) @map("total_transactions")
+  successfulTxCount   Int          @default(0) @map("successful_tx_count")
+  spendingLimit       Decimal      @default(0) @db.Decimal(78, 0) @map("spending_limit")
+  dailySpendingLimit  Decimal      @default(0) @db.Decimal(78, 0) @map("daily_spending_limit")
+  isAutonomous        Boolean      @default(false) @map("is_autonomous")
+  registeredOnChain   Boolean      @default(false) @map("registered_on_chain")
+  onChainAddress      String?      @map("on_chain_address") // AgentRegistry contract address
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  lastActiveAt        DateTime?    @map("last_active_at")
+  
+  // Relationships
+  wallet              Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  decisions           Decision[]
+  services            ServiceOffering[]
+  
+  @@index([walletId])
+  @@index([status])
+  @@index([agentType])
+  @@map("agents")
+}
+
+enum AgentType {
+  PLANNER           // High-level decision making
+  EXECUTOR          // Transaction execution
+  EVALUATOR         // Outcome assessment
+  COMMUNICATOR      // External API interaction
+  ANALYST           // Market analysis
+  TRADER            // Trading operations
+  RISK_MANAGER      // Risk assessment
+  PORTFOLIO_MANAGER // Portfolio optimization
+  RESEARCHER        // Research and data gathering
+  SOCIAL_MONITOR    // Social sentiment analysis
+  DEFI_AGENT        // DeFi protocol interaction
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+  SUSPENDED
+  RETIRED
+}
+
+// ========== Decision Logging (FR-007, NFR-006) ==========
+
+model Decision {
+  id              String         @id @default(uuid())
+  agentId         String         @map("agent_id")
+  decisionHash    String         @unique @map("decision_hash") // On-chain hash
+  reasoning       String         // AI reasoning
+  action          String         // Action type (buy, sell, transfer, etc.)
+  parameters      Json           // Action parameters
+  confidence      Int            // 0-100
+  context         Json?          // Decision context (market data, etc.)
+  ipfsHash        String?        @map("ipfs_hash") // IPFS proof storage
+  onChainTxHash   String?        @map("on_chain_tx_hash") // Blockchain logging tx
+  status          DecisionStatus @default(PENDING)
+  executedAt      DateTime?      @map("executed_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  
+  // Relationships
+  agent           Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("decisions")
+}
+
+enum DecisionStatus {
+  PENDING
+  LOGGED_ON_CHAIN
+  EXECUTING
+  EXECUTED
+  FAILED
+  REJECTED
+}
+
+// ========== Transaction Management (FR-005) ==========
+
+model Transaction {
+  id                String            @id @default(uuid())
+  walletId          String            @map("wallet_id")
+  decisionId        String?           @map("decision_id")
+  txHash            String?           @unique @map("tx_hash")
+  from              String
+  to                String?
+  value             Decimal           @default(0) @db.Decimal(78, 0) // Wei
+  gasUsed           Decimal?          @db.Decimal(78, 0) @map("gas_used")
+  gasPrice          Decimal?          @db.Decimal(78, 0) @map("gas_price")
+  effectiveGasPrice Decimal?          @db.Decimal(78, 0) @map("effective_gas_price")
+  nonce             Int?
+  blockNumber       BigInt?           @map("block_number")
+  blockHash         String?           @map("block_hash")
+  status            TransactionStatus @default(PENDING)
+  txType            TransactionType   @map("tx_type")
+  network           Network
+  contractAddress   String?           @map("contract_address")
+  functionName      String?           @map("function_name")
+  inputData         String?           @map("input_data") // Hex input data
+  error             String?
+  retryCount        Int               @default(0) @map("retry_count")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  confirmedAt       DateTime?         @map("confirmed_at")
+  
+  // Relationships
+  wallet            Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  decision          Decision?         @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+  
+  @@index([walletId])
+  @@index([decisionId])
+  @@index([status])
+  @@index([network])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+enum TransactionStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+  REVERTED
+  CANCELLED
+}
+
+enum TransactionType {
+  TRANSFER          // Simple ETH transfer
+  CONTRACT_CALL     // Smart contract interaction
+  DECISION_LOG      // Decision logging on chain
+  AGENT_REGISTER    // Agent registration
+  API_PAYMENT       // API service payment
+  SERVICE_PAYMENT   // Agent service payment
+  EMERGENCY_PAUSE   // Emergency pause action
+}
+
+// ========== Service Offerings (FR-012) ==========
+
+model ServiceOffering {
+  id              String   @id @default(uuid())
+  agentId         String   @map("agent_id")
+  serviceId       String   @unique @map("service_id") // Unique service identifier
+  name            String
+  description     String
+  price           Decimal  @db.Decimal(78, 0) // Wei
+  currency        String   @default("ETH")
+  isAvailable     Boolean  @default(true) @map("is_available")
+  metadata        Json?    // Additional service details
+  usageCount      Int      @default(0) @map("usage_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@index([agentId])
+  @@index([isAvailable])
+  @@map("service_offerings")
+}
+
+// ========== API Key Management (FR-010) ==========
+
+model ApiKey {
+  id          String       @id @default(uuid())
+  userId      String       @map("user_id")
+  keyHash     String       @unique @map("key_hash") // Hashed API key
+  name        String
+  scope       ApiKeyScope[]
+  expiresAt   DateTime?    @map("expires_at")
+  isActive    Boolean      @default(true) @map("is_active")
+  rateLimit   Int          @default(100) @map("rate_limit") // Requests per hour
+  usageCount  Int          @default(0) @map("usage_count")
+  lastUsedAt  DateTime?    @map("last_used_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  
+  // Relationships
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+enum ApiKeyScope {
+  READ_WALLET
+  WRITE_WALLET
+  READ_AGENT
+  WRITE_AGENT
+  EXECUTE_TRANSACTION
+  ADMIN
+}
+
+// ========== Audit Logging (NFR-006) ==========
+
+model AuditLog {
+  id          String       @id @default(uuid())
+  userId      String?      @map("user_id")
+  action      AuditAction
+  resource    String       // Resource type (wallet, agent, transaction)
+  resourceId  String?      @map("resource_id")
+  details     Json?        // Additional details
+  ipAddress   String?      @map("ip_address")
+  userAgent   String?      @map("user_agent")
+  success     Boolean      @default(true)
+  errorMessage String?     @map("error_message")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  
+  // Relationships
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_LOGOUT
+  USER_REGISTER
+  WALLET_CREATE
+  WALLET_IMPORT
+  WALLET_DELETE
+  AGENT_CREATE
+  AGENT_UPDATE
+  AGENT_DELETE
+  DECISION_CREATE
+  DECISION_EXECUTE
+  TRANSACTION_SUBMIT
+  TRANSACTION_CONFIRM
+  API_KEY_CREATE
+  API_KEY_REVOKE
+  CONFIG_UPDATE
+  EMERGENCY_PAUSE
+}
