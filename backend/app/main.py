@@ -9,16 +9,41 @@ from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import time
 import logging
+import os
 
 # Import routers
 from app.api import agents, wallet, transactions, decisions, verification, external, websocket
 
+# Import configuration
+from app.config import get_settings
+
+# Import services
+from app.services import (
+    get_verification_service,
+    get_payment_service,
+    get_oracle_service
+)
+
+# Import security
+from app.security import (
+    get_key_manager,
+    get_crypto_service,
+    get_auth_service
+)
+
+# Load configuration
+settings = get_settings()
+
 # Configure logging
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, settings.monitoring.log_level.upper()),
+    format=log_format
 )
 logger = logging.getLogger(__name__)
+
+# Service registry for dependency injection
+services = {}
 
 
 @asynccontextmanager
@@ -27,21 +52,110 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 WalletMind Backend starting up...")
     
-    # TODO: Initialize services
-    # - ChromaDB connection
+    # Initialize Security Services (NFR-004, FR-007, NFR-006)
+    logger.info("🔐 Initializing security services...")
+    try:
+        # Key Manager - Secure key management
+        key_manager = get_key_manager(
+            master_password=settings.security.master_password,
+            key_rotation_days=settings.security.key_rotation_days,
+            enable_key_rotation=settings.security.enable_key_rotation
+        )
+        services["key_manager"] = key_manager
+        logger.info("✅ KeyManager initialized")
+        
+        # Crypto Service - Cryptographic operations
+        crypto_service = get_crypto_service(
+            nonce_validity_seconds=settings.security.nonce_validity_seconds
+        )
+        services["crypto"] = crypto_service
+        logger.info("✅ CryptoService initialized")
+        
+        # Auth Service - Authentication and authorization
+        auth_service = get_auth_service(
+            jwt_secret=settings.security.jwt_secret,
+            access_token_expiry_minutes=settings.security.access_token_expiry_minutes,
+            refresh_token_expiry_days=settings.security.refresh_token_expiry_days
+        )
+        services["auth"] = auth_service
+        logger.info("✅ AuthService initialized")
+        
+    except Exception as e:
+        logger.error(f"❌ Error initializing security services: {e}")
+        raise
+    
+    # Initialize Infrastructure Services (FR-007, FR-010, FR-011)
+    logger.info("⚙️  Initializing infrastructure services...")
+    try:
+        # Verification Service - Decision provenance
+        verification_service = get_verification_service()
+        services["verification"] = verification_service
+        logger.info("✅ VerificationService initialized")
+        
+        # Payment Service - API payment automation
+        payment_service = get_payment_service()
+        services["payment"] = payment_service
+        logger.info("✅ PaymentService initialized")
+        
+        # Oracle Service - External data queries
+        oracle_service = get_oracle_service(
+            cache_ttl_seconds=settings.infrastructure.oracle_cache_ttl
+        )
+        services["oracle"] = oracle_service
+        logger.info("✅ OracleService initialized")
+        
+    except Exception as e:
+        logger.error(f"❌ Error initializing infrastructure services: {e}")
+        raise
+    
+    # TODO: Initialize other services
+    # - ChromaDB connection (Memory services)
     # - Blockchain provider connections
     # - IPFS client
     # - Database connections
     # - Cache (Redis)
     
-    logger.info("✅ All services initialized")
+    logger.info("✅ All services initialized successfully")
+    
+    # Store service registry in app state
+    app.state.services = services
     
     yield
     
     # Shutdown
     logger.info("🛑 WalletMind Backend shutting down...")
-    # TODO: Cleanup resources
-    logger.info("✅ Cleanup complete")
+    
+    # Cleanup security services
+    logger.info("🔐 Cleaning up security services...")
+    try:
+        # Clean up expired sessions and rate limits
+        if "auth" in services:
+            services["auth"].cleanup_expired()
+            logger.info("✅ AuthService cleaned up")
+        
+        # Clear crypto nonce cache
+        if "crypto" in services:
+            logger.info("✅ CryptoService cleaned up")
+        
+        logger.info("✅ Security services cleanup complete")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during security cleanup: {e}")
+    
+    # Cleanup infrastructure services
+    logger.info("⚙️  Cleaning up infrastructure services...")
+    try:
+        # Clear oracle cache
+        if "oracle" in services:
+            services["oracle"].clear_cache()
+            logger.info("✅ OracleService cache cleared")
+        
+        logger.info("✅ Infrastructure services cleanup complete")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during infrastructure cleanup: {e}")
+    
+    logger.info("✅ Shutdown complete")
 
 
 # Create FastAPI app
@@ -49,23 +163,19 @@ app = FastAPI(
     title="WalletMind API",
     description="AI Agent Autonomous Wallet System - Backend API",
     version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-    lifespan=lifespan
+    docs_url="/api/docs" if settings.features.enable_swagger_docs else None,
+    redoc_url="/api/redoc" if settings.features.enable_swagger_docs else None,
+    openapi_url="/api/openapi.json" if settings.features.enable_swagger_docs else None,
+    lifespan=lifespan,
+    debug=settings.debug
 )
 
 
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js frontend dev
-        "http://localhost:3001",
-        "https://walletmind.vercel.app",  # Production frontend
-        "*"  # Allow all for hackathon demo
-    ],
-    allow_credentials=True,
+    allow_origins=settings.api.cors_origins,
+    allow_credentials=settings.api.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
