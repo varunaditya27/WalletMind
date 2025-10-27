@@ -21,6 +21,7 @@ eth-account>=0.13.0
 eth-utils>=5.0.0
 eth-hash[pycryptodome]>=0.7.0  # For Ethereum hashing
 hexbytes>=1.2.0
+mnemonic>=0.20  # BIP39 mnemonic phrase generation for key derivation
 # Note: safe-eth-py removed - using TypeScript Safe SDK in blockchain/ folder instead
 
 # Database (PostgreSQL + Prisma)
@@ -45,10 +46,10 @@ celery>=5.4.0  # Optional: For background task queue
 flower>=2.0.1  # Optional: Celery monitoring
 
 # Security & Authentication
-cryptography>=43.0.0
+cryptography>=43.0.0  # AES-256-GCM encryption, PBKDF2, key derivation (NFR-004)
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4  # Password hashing
-pyjwt>=2.9.0  # JWT tokens
+pyjwt>=2.9.0  # JWT tokens for API authentication
 
 # Utilities
 httpx>=0.27.0  # Async HTTP client
