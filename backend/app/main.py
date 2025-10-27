@@ -1,1 +1,248 @@
-# FastAPI application entry point
+# Main FastAPI application for WalletMind backend
+# Orchestrates all API endpoints, middleware, and WebSocket connections
+
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from contextlib import asynccontextmanager
+import time
+import logging
+
+# Import routers
+from app.api import agents, wallet, transactions, decisions, verification, external, websocket
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan (startup/shutdown)"""
+    # Startup
+    logger.info("🚀 WalletMind Backend starting up...")
+    
+    # TODO: Initialize services
+    # - ChromaDB connection
+    # - Blockchain provider connections
+    # - IPFS client
+    # - Database connections
+    # - Cache (Redis)
+    
+    logger.info("✅ All services initialized")
+    
+    yield
+    
+    # Shutdown
+    logger.info("🛑 WalletMind Backend shutting down...")
+    # TODO: Cleanup resources
+    logger.info("✅ Cleanup complete")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="WalletMind API",
+    description="AI Agent Autonomous Wallet System - Backend API",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan
+)
+
+
+# CORS middleware configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Next.js frontend dev
+        "http://localhost:3001",
+        "https://walletmind.vercel.app",  # Production frontend
+        "*"  # Allow all for hackathon demo
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# GZip compression middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+# Request timing middleware
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Add processing time to response headers"""
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests"""
+    logger.info(f"{request.method} {request.url.path}")
+    response = await call_next(request)
+    logger.info(f"Status: {response.status_code}")
+    return response
+
+
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle uncaught exceptions"""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Internal server error",
+            "error": str(exc) if app.debug else "An error occurred"
+        }
+    )
+
+
+# Validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle request validation errors"""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": "Validation error",
+            "errors": exc.errors()
+        }
+    )
+
+
+# Include routers
+app.include_router(agents.router)
+app.include_router(wallet.router)
+app.include_router(transactions.router)
+app.include_router(decisions.router)
+app.include_router(verification.router)
+app.include_router(external.router)
+app.include_router(websocket.router)
+
+
+# Health check endpoint
+@app.get("/health", tags=["health"])
+async def health_check():
+    """
+    Health check endpoint for monitoring and load balancers.
+    """
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "timestamp": time.time()
+    }
+
+
+# Root endpoint
+@app.get("/", tags=["root"])
+async def root():
+    """
+    Root endpoint with API information.
+    """
+    return {
+        "name": "WalletMind API",
+        "version": "1.0.0",
+        "description": "AI Agent Autonomous Wallet System",
+        "documentation": "/api/docs",
+        "health": "/health",
+        "websocket": "/ws",
+        "endpoints": {
+            "agents": "/api/agents",
+            "wallet": "/api/wallet",
+            "transactions": "/api/transactions",
+            "decisions": "/api/decisions",
+            "verification": "/api/verification",
+            "external": "/api/external"
+        }
+    }
+
+
+# API info endpoint
+@app.get("/api", tags=["root"])
+async def api_info():
+    """
+    Detailed API information and available endpoints.
+    """
+    return {
+        "title": "WalletMind API",
+        "version": "1.0.0",
+        "features": {
+            "FR-001": "LangChain Agent Orchestration",
+            "FR-002": "Decision Logic Framework",
+            "FR-003": "Memory and Context Management",
+            "FR-004": "ERC-4337 Smart Account Integration",
+            "FR-005": "Transaction Execution System",
+            "FR-006": "Multi-Network Support",
+            "FR-007": "Decision Provenance Logging",
+            "FR-008": "On-Chain Audit Trail",
+            "FR-009": "Real-Time Verification Dashboard",
+            "FR-010": "API Payment Automation",
+            "FR-011": "Oracle and Data Services",
+            "FR-012": "Inter-Agent Communication"
+        },
+        "endpoints": {
+            "agents": {
+                "POST /api/agents/request": "Process agent request",
+                "POST /api/agents/memory/query": "Query agent memory",
+                "GET /api/agents/health": "Get agent health"
+            },
+            "wallet": {
+                "POST /api/wallet/create": "Create new wallet",
+                "POST /api/wallet/balance": "Check balance",
+                "PUT /api/wallet/spending-limit": "Update spending limit"
+            },
+            "transactions": {
+                "POST /api/transactions/execute": "Execute transaction",
+                "POST /api/transactions/history": "Get transaction history",
+                "GET /api/transactions/stats/{wallet}": "Get statistics"
+            },
+            "decisions": {
+                "POST /api/decisions/log": "Log decision",
+                "POST /api/decisions/verify": "Verify decision"
+            },
+            "verification": {
+                "POST /api/verification/audit-trail": "Get audit trail",
+                "GET /api/verification/statistics/autonomy": "Get autonomy stats"
+            },
+            "external": {
+                "POST /api/external/api-payment": "Pay for API",
+                "POST /api/external/data-purchase": "Purchase data",
+                "POST /api/external/agent-transaction": "Agent-to-agent transaction"
+            },
+            "websocket": {
+                "WS /ws": "General WebSocket",
+                "WS /ws/agents": "Agent updates",
+                "WS /ws/transactions": "Transaction updates",
+                "WS /ws/decisions": "Decision updates"
+            }
+        },
+        "documentation": {
+            "swagger": "/api/docs",
+            "redoc": "/api/redoc",
+            "openapi": "/api/openapi.json"
+        }
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
