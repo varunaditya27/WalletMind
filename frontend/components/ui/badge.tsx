@@ -1,44 +1,34 @@
-"use client";
-
 import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+
 import { cn } from "@/lib/utils";
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "primary" | "success" | "warning" | "error" | "neutral";
-  size?: "sm" | "md" | "lg";
-}
-
-const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
-  ({ className, variant = "neutral", size = "md", ...props }, ref) => {
-    const variants = {
-      primary: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-      success: "bg-green-500/20 text-green-300 border-green-500/30",
-      warning: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-      error: "bg-red-500/20 text-red-300 border-red-500/30",
-      neutral: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-    };
-
-    const sizes = {
-      sm: "px-2 py-0.5 text-xs",
-      md: "px-3 py-1 text-sm",
-      lg: "px-4 py-1.5 text-base",
-    };
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "inline-flex items-center rounded-full font-medium border",
-          variants[variant],
-          sizes[size],
-          className
-        )}
-        {...props}
-      />
-    );
+const badgeVariants = cva(
+  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium tracking-wide",
+  {
+    variants: {
+      variant: {
+        default: "border-accent/40 bg-accent/20 text-accent",
+        gold: "border-gold/40 bg-gold/15 text-gold",
+        success: "border-success/30 bg-success/15 text-success",
+        warning: "border-warning/30 bg-warning/15 text-warning",
+        outline: "border-white/10 bg-transparent text-muted",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
   }
 );
 
-Badge.displayName = "Badge";
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLSpanElement>,
+    VariantProps<typeof badgeVariants> {}
 
-export { Badge };
+export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
+  ({ className, variant, ...props }, ref) => (
+    <span ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
+  )
+);
+
+Badge.displayName = "Badge";
