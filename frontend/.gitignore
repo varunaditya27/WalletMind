@@ -1,41 +1,181 @@
+# ============================================================================
+# WalletMind Frontend - Next.js 15 App Router
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================================================
 
-# dependencies
+# ============================================================================
+# Dependencies
+# ============================================================================
 /node_modules
 /.pnp
 .pnp.*
+.pnp.js
+
+# Yarn
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.yarnrc.yml
 
-# testing
+# npm
+package-lock.json
+npm-debug.log*
+
+# pnpm
+pnpm-lock.yaml
+.pnpm-debug.log*
+
+# Bun
+bun.lockb
+
+# ============================================================================
+# Testing
+# ============================================================================
 /coverage
+.nyc_output
+test-results/
+playwright-report/
+playwright/.cache/
 
-# next.js
+# ============================================================================
+# Next.js Build Output
+# ============================================================================
 /.next/
 /out/
+next-env.d.ts
 
-# production
+# Static site generation
+/dist
+
+# ============================================================================
+# Production
+# ============================================================================
 /build
 
-# misc
-.DS_Store
-*.pem
+# ============================================================================
+# Environment Variables
+# ============================================================================
+# CRITICAL: Never commit these files!
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+.env.test
 
-# debug
+# Keep .env.local.example as template
+!.env.local.example
+
+# ============================================================================
+# Vercel Deployment
+# ============================================================================
+.vercel
+.vercel.json
+
+# ============================================================================
+# TypeScript
+# ============================================================================
+*.tsbuildinfo
+next-env.d.ts
+
+# ============================================================================
+# Debug & Logs
+# ============================================================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# ============================================================================
+# OS Generated Files
+# ============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
 
-# vercel
-.vercel
+# ============================================================================
+# IDEs & Editors
+# ============================================================================
+# VSCode
+.vscode/
+.vscode-server/
+*.code-workspace
 
-# typescript
-*.tsbuildinfo
+# WebStorm / IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# Miscellaneous
+# ============================================================================
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+
+# Local data
+local-data/
+
+# Storybook
+storybook-static/
+.storybook-out/
+
+# Sentry
+.sentryclirc
+
+# Turbo
+.turbo
+
+# ============================================================================
+# WalletConnect & Web3
+# ============================================================================
+# Wallet connection cache
+.walletconnect/
+
+# ============================================================================
+# Service Workers
+# ============================================================================
+sw.js
+sw.js.map
+workbox-*.js
+workbox-*.js.map
+
+# ============================================================================
+# End of .gitignore
+# ============================================================================
+
 next-env.d.ts

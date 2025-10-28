@@ -3,6 +3,7 @@
 
 generator client {
   provider             = "prisma-client-py"
+  enable_experimental_decimal = true
   interface            = "asyncio"
   recursive_type_depth = 5
 }
@@ -10,6 +11,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ========== User Management (FR-007) ==========
@@ -198,7 +200,7 @@ model Transaction {
   walletId          String            @map("wallet_id")
   decisionId        String?           @map("decision_id")
   txHash            String?           @unique @map("tx_hash")
-  from              String
+  fromAddress       String            @map("from")
   to                String?
   value             Decimal           @default(0) @db.Decimal(78, 0) // Wei
   gasUsed           Decimal?          @db.Decimal(78, 0) @map("gas_used")

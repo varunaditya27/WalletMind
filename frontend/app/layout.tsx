@@ -1,27 +1,47 @@
 import type { Metadata } from "next";
-import { Sora } from "next/font/google";
+import { JetBrains_Mono, Sora, Space_Grotesk } from "next/font/google";
+
+import { CursorGlow } from "@/components/visual/cursor-glow";
 import "./globals.css";
-import { Web3Provider } from "@/components/providers/web3-provider";
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
-import { Toaster } from "@/hooks/use-toast";
 
 const sora = Sora({
-  variable: "--font-sora",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-sora",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const jetBrains = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "WalletMind | AI-Powered Autonomous Wallet System",
-  description: "Next-generation blockchain platform merging AI autonomy with decentralized finance. Autonomous economic agents with cryptographic decision verification.",
-  keywords: ["AI", "Blockchain", "Web3", "DeFi", "Autonomous Agents", "Smart Wallets"],
-  authors: [{ name: "WalletMind Team" }],
+  title: "WalletMind | Autonomous AI Wallet OS",
+  description:
+    "WalletMind blends AI agents with ERC-4337 smart accounts, delivering verifiable autonomous finance.",
+  metadataBase: new URL("https://walletmind.ai"),
   openGraph: {
-    title: "WalletMind | AI-Powered Autonomous Wallet System",
-    description: "Next-generation blockchain platform merging AI autonomy with decentralized finance.",
+    title: "WalletMind | Autonomous AI Wallet OS",
+    description:
+      "Control, verify, and monitor autonomous AI wallet agents with cryptographic transparency.",
+    url: "https://walletmind.ai",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WalletMind | Autonomous AI Wallet OS",
+    description:
+      "Control, verify, and monitor autonomous AI wallet agents with cryptographic transparency.",
   },
 };
 
@@ -31,16 +51,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={sora.variable}>
-      <body className="antialiased flex flex-col min-h-screen">
-        <Web3Provider>
-          <Navbar />
-          <main className="flex-1 pt-16">
-            {children}
-          </main>
-          <Footer />
-          <Toaster />
-        </Web3Provider>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        className={`${sora.variable} ${spaceGrotesk.variable} ${jetBrains.variable} bg-background font-sans text-foreground antialiased`}
+      >
+        <CursorGlow />
+        <div className="relative min-h-screen bg-wm-gradient">
+          <div className="absolute inset-0 bg-wm-radial-blue" aria-hidden />
+          <div className="absolute inset-0 bg-wm-radial-gold" aria-hidden />
+          <div className="relative z-10 min-h-screen">{children}</div>
+        </div>
       </body>
     </html>
   );

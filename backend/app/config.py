@@ -13,6 +13,14 @@ from pydantic import Field, validator
 
 class LLMConfig(BaseSettings):
     """LLM Configuration (FR-001, FR-002)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     groq_api_key: str = Field(default="", env="GROQ_API_KEY")
     google_api_key: str = Field(default="", env="GOOGLE_API_KEY")
     provider: str = Field(default="groq", env="LLM_PROVIDER")
@@ -23,7 +31,15 @@ class LLMConfig(BaseSettings):
 
 class DatabaseConfig(BaseSettings):
     """Database Configuration"""
-    url: str = Field(..., env="DATABASE_URL")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""  # Explicitly set no prefix for root-level env vars
+    )
+    
+    url: str = Field(..., env="DATABASE_URL", validation_alias="DATABASE_URL")
     host: str = Field(default="localhost", env="POSTGRES_HOST")
     port: int = Field(default=5432, env="POSTGRES_PORT")
     user: str = Field(default="walletmind", env="POSTGRES_USER")
@@ -33,6 +49,14 @@ class DatabaseConfig(BaseSettings):
 
 class ChromaDBConfig(BaseSettings):
     """ChromaDB Configuration (FR-003)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     persist_dir: str = Field(default="./data/chromadb", env="CHROMADB_PERSIST_DIR")
     host: str = Field(default="localhost", env="CHROMADB_HOST")
     port: int = Field(default=8000, env="CHROMADB_PORT")
@@ -40,12 +64,20 @@ class ChromaDBConfig(BaseSettings):
 
 class BlockchainConfig(BaseSettings):
     """Blockchain Configuration (FR-004, FR-005, FR-006)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     # Private keys (SENSITIVE - never log these)
     deployer_private_key: Optional[str] = Field(default=None, env="DEPLOYER_PRIVATE_KEY")
     agent_private_key: Optional[str] = Field(default=None, env="AGENT_PRIVATE_KEY")
     
     # Network RPCs
-    sepolia_rpc_url: str = Field(..., env="SEPOLIA_RPC_URL")
+    sepolia_rpc_url: str = Field(..., env="SEPOLIA_RPC_URL", validation_alias="SEPOLIA_RPC_URL")
     polygon_amoy_rpc_url: Optional[str] = Field(default=None, env="POLYGON_AMOY_RPC_URL")
     base_goerli_rpc_url: Optional[str] = Field(default=None, env="BASE_GOERLI_RPC_URL")
     
@@ -61,6 +93,14 @@ class BlockchainConfig(BaseSettings):
 
 class IPFSConfig(BaseSettings):
     """IPFS Configuration (FR-007)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     api_url: str = Field(default="http://localhost:5001", env="IPFS_API_URL")
     pinata_api_key: Optional[str] = Field(default=None, env="PINATA_API_KEY")
     pinata_secret_key: Optional[str] = Field(default=None, env="PINATA_SECRET_API_KEY")
@@ -69,6 +109,14 @@ class IPFSConfig(BaseSettings):
 
 class RedisConfig(BaseSettings):
     """Redis Configuration"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     host: str = Field(default="localhost", env="REDIS_HOST")
     port: int = Field(default=6379, env="REDIS_PORT")
@@ -78,6 +126,14 @@ class RedisConfig(BaseSettings):
 
 class BackgroundTasksConfig(BaseSettings):
     """Background Tasks Configuration"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     transaction_monitor_interval: int = Field(default=10, env="TRANSACTION_MONITOR_INTERVAL")
     reputation_update_interval: int = Field(default=300, env="REPUTATION_UPDATE_INTERVAL")
     agent_loop_check_interval: int = Field(default=30, env="AGENT_LOOP_CHECK_INTERVAL")
@@ -86,8 +142,16 @@ class BackgroundTasksConfig(BaseSettings):
 
 class SecurityConfig(BaseSettings):
     """Security Configuration (NFR-004, FR-007, NFR-006)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     # Key Management (NFR-004)
-    master_password: str = Field(..., env="MASTER_PASSWORD")
+    master_password: str = Field(..., env="MASTER_PASSWORD", validation_alias="MASTER_PASSWORD")
     key_salt: str = Field(default="walletmind_security_salt", env="KEY_SALT")
     key_rotation_days: int = Field(default=90, env="KEY_ROTATION_DAYS")
     enable_key_rotation: bool = Field(default=True, env="ENABLE_KEY_ROTATION")
@@ -97,7 +161,7 @@ class SecurityConfig(BaseSettings):
     signature_max_age_seconds: int = Field(default=3600, env="SIGNATURE_MAX_AGE_SECONDS")
     
     # Authentication
-    jwt_secret: str = Field(..., env="JWT_SECRET")
+    jwt_secret: str = Field(..., env="JWT_SECRET", validation_alias="JWT_SECRET")
     access_token_expiry_minutes: int = Field(default=60, env="ACCESS_TOKEN_EXPIRY_MINUTES")
     refresh_token_expiry_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRY_DAYS")
     
@@ -108,6 +172,14 @@ class SecurityConfig(BaseSettings):
 
 class InfrastructureServicesConfig(BaseSettings):
     """Infrastructure Services Configuration (FR-010, FR-011)"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     # Oracle Service
     oracle_cache_ttl: int = Field(default=300, env="ORACLE_CACHE_TTL")
     coingecko_api_key: Optional[str] = Field(default=None, env="COINGECKO_API_KEY")
@@ -125,6 +197,14 @@ class InfrastructureServicesConfig(BaseSettings):
 
 class APIConfig(BaseSettings):
     """API Configuration"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     v1_prefix: str = Field(default="/api/v1", env="API_V1_PREFIX")
     host: str = Field(default="0.0.0.0", env="API_HOST")
     port: int = Field(default=8000, env="API_PORT")
@@ -147,6 +227,14 @@ class APIConfig(BaseSettings):
 
 class MonitoringConfig(BaseSettings):
     """Monitoring & Logging Configuration"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     log_format: str = Field(default="json", env="LOG_FORMAT")
     sentry_dsn: Optional[str] = Field(default=None, env="SENTRY_DSN")
@@ -154,6 +242,14 @@ class MonitoringConfig(BaseSettings):
 
 class FeatureFlagsConfig(BaseSettings):
     """Feature Flags"""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix=""
+    )
+    
     enable_swagger_docs: bool = Field(default=True, env="ENABLE_SWAGGER_DOCS")
     enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
@@ -173,7 +269,8 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
+        env_nested_delimiter="__"
     )
     
     # Application
@@ -181,19 +278,19 @@ class Settings(BaseSettings):
     testing: bool = Field(default=False, env="TESTING")
     environment: str = Field(default="production", env="ENVIRONMENT")
     
-    # Sub-configurations
-    llm: LLMConfig = Field(default_factory=LLMConfig)
-    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    chromadb: ChromaDBConfig = Field(default_factory=ChromaDBConfig)
-    blockchain: BlockchainConfig = Field(default_factory=BlockchainConfig)
-    ipfs: IPFSConfig = Field(default_factory=IPFSConfig)
-    redis: RedisConfig = Field(default_factory=RedisConfig)
-    background_tasks: BackgroundTasksConfig = Field(default_factory=BackgroundTasksConfig)
-    security: SecurityConfig = Field(default_factory=SecurityConfig)
-    infrastructure: InfrastructureServicesConfig = Field(default_factory=InfrastructureServicesConfig)
-    api: APIConfig = Field(default_factory=APIConfig)
-    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
-    features: FeatureFlagsConfig = Field(default_factory=FeatureFlagsConfig)
+    # Sub-configurations - Use default_factory lambda to delay instantiation
+    llm: LLMConfig = Field(default_factory=lambda: LLMConfig())
+    database: DatabaseConfig = Field(default_factory=lambda: DatabaseConfig())
+    chromadb: ChromaDBConfig = Field(default_factory=lambda: ChromaDBConfig())
+    blockchain: BlockchainConfig = Field(default_factory=lambda: BlockchainConfig())
+    ipfs: IPFSConfig = Field(default_factory=lambda: IPFSConfig())
+    redis: RedisConfig = Field(default_factory=lambda: RedisConfig())
+    background_tasks: BackgroundTasksConfig = Field(default_factory=lambda: BackgroundTasksConfig())
+    security: SecurityConfig = Field(default_factory=lambda: SecurityConfig())
+    infrastructure: InfrastructureServicesConfig = Field(default_factory=lambda: InfrastructureServicesConfig())
+    api: APIConfig = Field(default_factory=lambda: APIConfig())
+    monitoring: MonitoringConfig = Field(default_factory=lambda: MonitoringConfig())
+    features: FeatureFlagsConfig = Field(default_factory=lambda: FeatureFlagsConfig())
 
 
 # Singleton instance

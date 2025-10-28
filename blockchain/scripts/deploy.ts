@@ -45,14 +45,10 @@ async function main() {
   console.log("\n📦 Deploying contracts...");
   
   console.log("   Deploying AgentWallet...");
-  const agentWallet = await viem.deployContract("AgentWallet", 
-    [deployer.account.address, deployer.account.address] as any
-  );
+  const agentWallet = await viem.deployContract("AgentWallet");
   
   console.log("   Deploying AgentRegistry...");
-  const agentRegistry = await viem.deployContract("AgentRegistry",
-    [deployer.account.address] as any
-  );
+  const agentRegistry = await viem.deployContract("AgentRegistry");
 
   console.log(`\n✅ Deployment complete!`);
   console.log(`   AgentWallet: ${agentWallet.address}`);
@@ -64,7 +60,7 @@ async function main() {
     chainId: publicClient.chain.id,
     deployer: deployer.account.address,
     timestamp: new Date().toISOString(),
-    blockNumber: await publicClient.getBlockNumber(),
+  blockNumber: (await publicClient.getBlockNumber()).toString(),
     contracts: {
       AgentWallet: agentWallet.address,
       AgentRegistry: agentRegistry.address,
@@ -84,7 +80,7 @@ async function main() {
   allDeployments[network] = deploymentInfo;
 
   // Write to root directory
-  const rootPath = join(__dirname, "../../deployed-contracts.json");
+  const rootPath = join(process.cwd(), "deployed-contracts.json");
   writeFileSync(rootPath, JSON.stringify(allDeployments, null, 2));
   
   console.log(`\n📄 Deployment info saved to deployed-contracts.json`);
