@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -7,6 +8,7 @@ import { Bot, Gauge, History, Settings, Sparkles } from "lucide-react";
 import { PropsWithChildren } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useWalletMindStore } from "@/lib/stores/walletmind-store";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -38,6 +40,20 @@ const navItems = [
 
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname() ?? "";
+  const connectWebsocket = useWalletMindStore((state) => state.connectWebsocket);
+  const disconnectWebsocket = useWalletMindStore((state) => state.disconnectWebsocket);
+  const websocketConnected = useWalletMindStore((state) => state.websocketConnected);
+  const websocketError = useWalletMindStore((state) => state.websocketError);
+  const lastSyncedAt = useWalletMindStore((state) => state.lastSyncedAt);
+  const refreshAll = useWalletMindStore((state) => state.refreshAll);
+  const loading = useWalletMindStore((state) => state.loading.dashboard);
+
+  useEffect(() => {
+    connectWebsocket();
+    return () => {
+      disconnectWebsocket();
+    };
+  }, [connectWebsocket, disconnectWebsocket]);
 
   return (
     <div className="relative flex min-h-screen bg-wm-gradient text-foreground">
@@ -100,14 +116,39 @@ export function AppShell({ children }: PropsWithChildren) {
       </aside>
       <main className="relative flex flex-1 flex-col">
         <MobileNav pathname={pathname} />
-        <AppTopBar />
+        <AppTopBar
+          connected={websocketConnected}
+          error={websocketError}
+          lastSyncedAt={lastSyncedAt}
+          loading={loading}
+          onSync={() => refreshAll()}
+        />
         <div className="flex-1 px-6 pb-12 pt-6 lg:px-10">{children}</div>
       </main>
     </div>
   );
 }
 
-function AppTopBar() {
+function AppTopBar({
+  connected,
+  error,
+  lastSyncedAt,
+  loading,
+  onSync,
+}: {
+  connected: boolean;
+  error?: string;
+  lastSyncedAt?: string;
+  loading: boolean;
+  onSync: () => void;
+}) {
+  const badgeText = error
+    ? "Connection issue"
+    : connected
+    ? "Agent online"
+    : "Reconnecting";
+  const latencyText = lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Awaiting sync";
+
   return (
     <div className="flex items-center justify-between border-b border-white/5 bg-black/20 px-6 py-5 backdrop-blur-18 lg:px-10">
       <div>
@@ -118,11 +159,23 @@ function AppTopBar() {
         <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
           <span className="relative flex h-3 w-3">
             <span className="absolute inset-0 rounded-full bg-accent/50 blur-sm" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-accent" />
+            <span
+              className={cn(
+                "relative inline-flex h-3 w-3 rounded-full",
+                error ? "bg-warning" : connected ? "bg-accent" : "bg-white/40"
+              )}
+            />
           </span>
-          <span className="text-xs text-muted">Agent online · Latency 42ms</span>
+          <span className="text-xs text-muted">
+            {badgeText} · {loading ? "Syncing" : latencyText}
+          </span>
         </div>
-        <Button variant="outline" size="sm" className="text-xs uppercase tracking-[0.3em]">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs uppercase tracking-[0.3em]"
+          onClick={() => onSync()}
+        >
           Sync Wallet
         </Button>
       </div>
@@ -139,6 +192,30 @@ function DecorativeBackdrop() {
       <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/10 blur-3xl" />
     </div>
   );
+}
+
+function formatRelativeTime(timestamp?: string) {
+  if (!timestamp) {
+    return "now";
+  }
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+  const diff = Date.now() - date.getTime();
+  if (diff < 30_000) {
+    return "just now";
+  }
+  const minutes = Math.round(diff / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 function MobileNav({ pathname }: { pathname: string }) {
