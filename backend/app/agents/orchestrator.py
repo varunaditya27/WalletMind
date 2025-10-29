@@ -1,5 +1,5 @@
 """
-Agent Orchestrator - LangGraph Multi-Agent Workflow (FR-002)
+Orchestrator Agent- LangGraph Multi-Agent Workflow (FR-002)
 
 Implements the decision tree logic:
 User Request → Analyze Intent → Check Wallet Balance → 
@@ -60,7 +60,7 @@ class AgentState(TypedDict):
     error: Optional[str]
 
 
-class AgentOrchestrator:
+class OrchestratorAgent:
     """
     Orchestrates multi-agent workflow using LangGraph.
     
