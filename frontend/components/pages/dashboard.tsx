@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
-import type { AgentHealth, AuditEntry, BalanceResponse, WebsocketEvent } from "@/lib/types";
+import type { AgentHealth, AuditEntry, WebsocketEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 
@@ -178,13 +178,25 @@ export function DashboardScreen() {
         <div>
           <p className="text-xs uppercase tracking-[0.4em] text-muted">Mission Control</p>
           <h1 className="text-2xl font-semibold text-foreground">WalletMind Autonomy Overview</h1>
+          <p className="mt-1 text-sm text-muted">
+            Real-time monitoring of your autonomous agent wallet operations
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          {errors && <Badge variant="warning" className="border-destructive/40 text-destructive">{errors}</Badge>}
-          <Button variant="ghost" size="sm">
+          {errors && (
+            <Badge variant="warning" className="border-destructive/40 text-destructive">
+              {errors}
+            </Badge>
+          )}
+          {loading && (
+            <Badge variant="outline" className="animate-pulse">
+              Syncing...
+            </Badge>
+          )}
+          <Button variant="ghost" size="sm" title="Export verification ledger for compliance">
             Export Proof Ledger
           </Button>
-          <Button size="sm">
+          <Button size="sm" title="Deploy a new AI agent to the system">
             <ArrowUpRight className="h-4 w-4" />
             Deploy New Agent
           </Button>

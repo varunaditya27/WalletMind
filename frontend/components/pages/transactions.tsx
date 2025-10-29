@@ -100,12 +100,22 @@ export function TransactionsScreen() {
           </Badge>
         </CardHeader>
         <CardContent className="space-y-4">
-          {ledger.length === 0 && (
-            <div className="rounded-2xl border border-white/5 bg-black/20 p-6 text-sm text-muted">
-              No transactions recorded yet for this filter.
+          {loading && (
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-6 text-sm text-muted animate-pulse">
+              Loading transaction history...
             </div>
           )}
-          {ledger.map((tx, index) => (
+          {!loading && ledger.length === 0 && (
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-6">
+              <p className="text-sm font-semibold text-foreground mb-2">No transactions found</p>
+              <p className="text-sm text-muted">
+                {activeFilter === "all"
+                  ? "This wallet hasn't executed any transactions yet. Start by making your first agent request from the Agent Console."
+                  : `No ${formatFilterLabel(activeFilter)} transactions found. Try selecting a different filter.`}
+              </p>
+            </div>
+          )}
+          {!loading && ledger.map((tx, index) => (
             <motion.div
               key={tx.transaction_id ?? `${tx.transaction_hash}-${index}`}
               className="grid gap-3 rounded-2xl border border-white/5 bg-black/30 p-4 sm:grid-cols-[1.4fr_1fr_1fr_1fr]"
