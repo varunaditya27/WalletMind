@@ -291,10 +291,14 @@ Analyze this request and generate a structured transaction plan."""
         
         # Address-based risk
         if to_address:
-            # Check if address is in known addresses (TODO: implement registry)
+            # Registry lookup for known addresses
+            known_addresses = context.metadata.get("known_addresses", [])
             if not to_address.startswith("0x") or len(to_address) != 42:
                 risk_factors.append("Invalid address format")
                 risk_score += 0.5
+            elif to_address not in known_addresses:
+                risk_factors.append("Unknown recipient address")
+                risk_score += 0.2
         
         # History-based risk
         if len(context.previous_decisions) < 5:
