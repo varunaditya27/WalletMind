@@ -17,6 +17,7 @@ import {
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
 import type { AgentHealth, AuditEntry, BalanceResponse, WebsocketEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useShallow } from "zustand/react/shallow";
 
 const highlightIcons = {
   uptime: ShieldCheck,
@@ -36,18 +37,20 @@ export function DashboardScreen() {
     loading,
     errors,
     initializeDashboard,
-  } = useWalletMindStore((state) => ({
-    balances: state.balances,
-    networks: state.networks,
-    transactionStats: state.transactionStats,
-    agentHealth: state.agentHealth,
-    auditTrail: state.auditTrail,
-    websocketMessages: state.websocketMessages,
-    lastSyncedAt: state.lastSyncedAt,
-    loading: state.loading.dashboard,
-    errors: state.errors.dashboard,
-    initializeDashboard: state.initializeDashboard,
-  }));
+  } = useWalletMindStore(
+    useShallow((state) => ({
+      balances: state.balances,
+      networks: state.networks,
+      transactionStats: state.transactionStats,
+      agentHealth: state.agentHealth,
+      auditTrail: state.auditTrail,
+      websocketMessages: state.websocketMessages,
+      lastSyncedAt: state.lastSyncedAt,
+      loading: state.loading.dashboard,
+      errors: state.errors.dashboard,
+      initializeDashboard: state.initializeDashboard,
+    }))
+  );
 
   useEffect(() => {
     initializeDashboard();

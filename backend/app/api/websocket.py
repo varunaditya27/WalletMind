@@ -19,21 +19,19 @@ class ConnectionManager:
             "transactions": set(),
             "decisions": set(),
             "verification": set(),
-            "all": set()
         }
-    
-    async def connect(self, websocket: WebSocket, channel: str = "all"):
+
+    async def connect(self, websocket: WebSocket, channel: str = "agents"):
         """Accept and register a new WebSocket connection"""
+        if channel not in self.active_connections:
+            self.active_connections[channel] = set()
         await websocket.accept()
-        if channel in self.active_connections:
-            self.active_connections[channel].add(websocket)
-        self.active_connections["all"].add(websocket)
-    
-    def disconnect(self, websocket: WebSocket, channel: str = "all"):
+        self.active_connections[channel].add(websocket)
+
+    def disconnect(self, websocket: WebSocket, channel: str = "agents"):
         """Remove a WebSocket connection"""
         if channel in self.active_connections:
             self.active_connections[channel].discard(websocket)
-        self.active_connections["all"].discard(websocket)
     
     async def broadcast(self, message: dict, channel: str = "all"):
         """Broadcast message to all connections in a channel"""
@@ -43,13 +41,12 @@ class ConnectionManager:
         message_json = json.dumps(message)
         dead_connections = set()
         
-        for connection in self.active_connections[channel]:
+        for connection in set(self.active_connections[channel]):
             try:
                 await connection.send_text(message_json)
             except Exception:
                 dead_connections.add(connection)
-        
-        # Remove dead connections
+
         for connection in dead_connections:
             self.disconnect(connection, channel)
     
@@ -71,7 +68,13 @@ async def websocket_endpoint(websocket: WebSocket):
     
     Implements FR-009: Real-Time Verification Dashboard
     """
-    await manager.connect(websocket, "all")
+    await websocket.accept()
+    channels = {
+        "agents": False,
+        "transactions": False,
+        "decisions": False,
+        "verification": False,
+    }
     
     try:
         # Send welcome message
@@ -88,8 +91,18 @@ async def websocket_endpoint(websocket: WebSocket):
             message = json.loads(data)
             
             if message.get("action") == "subscribe":
-                channel = message.get("channel", "all")
-                await manager.connect(websocket, channel)
+                channel = message.get("channel", "agents")
+                if channel not in channels:
+                    await manager.send_personal_message({
+                        "type": "subscription",
+                        "channel": channel,
+                        "status": "unsupported",
+                    }, websocket)
+                    continue
+
+                if not channels[channel]:
+                    await manager.connect(websocket, channel)
+                    channels[channel] = True
                 await manager.send_personal_message({
                     "type": "subscription",
                     "channel": channel,
@@ -103,7 +116,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 }, websocket)
     
     except WebSocketDisconnect:
-        manager.disconnect(websocket, "all")
+        for channel, subscribed in channels.items():
+            if subscribed:
+                manager.disconnect(websocket, channel)
 
 
 @router.websocket("/ws/agents")

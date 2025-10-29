@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
 import type { TransactionInfo, TransactionStatsResponse } from "@/lib/types";
+import { useShallow } from "zustand/react/shallow";
 
 export function TransactionsScreen() {
   const {
@@ -19,14 +20,16 @@ export function TransactionsScreen() {
     loading,
     errors,
     initializeTransactions,
-  } = useWalletMindStore((state) => ({
-    transactionHistory: state.transactionHistory,
-    transactionStats: state.transactionStats,
-    auditTrail: state.auditTrail,
-    loading: state.loading.transactions,
-    errors: state.errors.transactions,
-    initializeTransactions: state.initializeTransactions,
-  }));
+  } = useWalletMindStore(
+    useShallow((state) => ({
+      transactionHistory: state.transactionHistory,
+      transactionStats: state.transactionStats,
+      auditTrail: state.auditTrail,
+      loading: state.loading.transactions,
+      errors: state.errors.transactions,
+      initializeTransactions: state.initializeTransactions,
+    }))
+  );
 
   useEffect(() => {
     initializeTransactions();

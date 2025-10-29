@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
 import type { APIProviderInfo, WalletStatusResponse } from "@/lib/types";
+import { useShallow } from "zustand/react/shallow";
 
 export function SettingsScreen() {
   const {
@@ -23,19 +24,21 @@ export function SettingsScreen() {
     toggleTelemetry,
     pauseWallet,
     unpauseWallet,
-  } = useWalletMindStore((state) => ({
-    providers: state.providers,
-    walletStatus: state.walletStatus,
-    preferences: state.preferences,
-    loading: state.loading.settings,
-    errors: state.errors.settings,
-    initializeSettings: state.initializeSettings,
-    toggleSpendingGuard: state.toggleSpendingGuard,
-    toggleMultiNetwork: state.toggleMultiNetwork,
-    toggleTelemetry: state.toggleTelemetry,
-    pauseWallet: state.pauseWallet,
-    unpauseWallet: state.unpauseWallet,
-  }));
+  } = useWalletMindStore(
+    useShallow((state) => ({
+      providers: state.providers,
+      walletStatus: state.walletStatus,
+      preferences: state.preferences,
+      loading: state.loading.settings,
+      errors: state.errors.settings,
+      initializeSettings: state.initializeSettings,
+      toggleSpendingGuard: state.toggleSpendingGuard,
+      toggleMultiNetwork: state.toggleMultiNetwork,
+      toggleTelemetry: state.toggleTelemetry,
+      pauseWallet: state.pauseWallet,
+      unpauseWallet: state.unpauseWallet,
+    }))
+  );
 
   useEffect(() => {
     initializeSettings();

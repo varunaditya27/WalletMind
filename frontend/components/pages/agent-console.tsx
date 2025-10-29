@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
 import type { AuditEntry, WebsocketEvent } from "@/lib/types";
+import { useShallow } from "zustand/react/shallow";
 
 export function AgentConsoleScreen() {
   const {
@@ -24,13 +25,15 @@ export function AgentConsoleScreen() {
     websocketMessages,
     loading,
     initializeAgentConsole,
-  } = useWalletMindStore((state) => ({
-    agentActivity: state.agentActivity,
-    auditTrail: state.auditTrail,
-    websocketMessages: state.websocketMessages,
-    loading: state.loading.agent,
-    initializeAgentConsole: state.initializeAgentConsole,
-  }));
+  } = useWalletMindStore(
+    useShallow((state) => ({
+      agentActivity: state.agentActivity,
+      auditTrail: state.auditTrail,
+      websocketMessages: state.websocketMessages,
+      loading: state.loading.agent,
+      initializeAgentConsole: state.initializeAgentConsole,
+    }))
+  );
 
   useEffect(() => {
     initializeAgentConsole();
