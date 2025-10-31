@@ -193,10 +193,25 @@ export function DashboardScreen() {
               Syncing...
             </Badge>
           )}
-          <Button variant="ghost" size="sm" title="Export verification ledger for compliance">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            title="Export verification ledger for compliance"
+            onClick={() => {
+              // TODO: Implement export functionality
+              alert("Export functionality will be implemented soon");
+            }}
+          >
             Export Proof Ledger
           </Button>
-          <Button size="sm" title="Deploy a new AI agent to the system">
+          <Button 
+            size="sm" 
+            title="Deploy a new AI agent to the system"
+            onClick={() => {
+              // TODO: Implement agent deployment
+              alert("Agent deployment functionality will be implemented soon");
+            }}
+          >
             <ArrowUpRight className="h-4 w-4" />
             Deploy New Agent
           </Button>
