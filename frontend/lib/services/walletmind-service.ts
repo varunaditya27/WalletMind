@@ -2,8 +2,10 @@ import { apiGet, apiPost, apiPut, apiPostQuery } from "@/lib/api-client";
 import {
   APIProviderInfo,
   AgentHealth,
+  AgentInfo,
   AuditTrailResponse,
   BalanceResponse,
+  CreateAgentRequest,
   NetworkInfo,
   NetworkType,
   TransactionHistoryResponse,
@@ -129,4 +131,8 @@ export async function unpauseWallet(
   walletAddress = PRIMARY_WALLET_ADDRESS
 ): Promise<Record<string, unknown>> {
   return apiPostQuery("/api/wallet/unpause", { wallet_address: walletAddress });
+}
+
+export async function createAgent(request: CreateAgentRequest): Promise<AgentInfo> {
+  return apiPost<AgentInfo>("/api/agents/create", request);
 }
