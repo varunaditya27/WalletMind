@@ -173,6 +173,61 @@ Always return ExecutionResult with:
 
 Be precise, secure, and efficient in all blockchain operations."""
     
+    async def log_decision_on_chain(
+        self,
+        decision_data: Dict[str, Any],
+        agent_wallet_address: str,
+        network: NetworkType = NetworkType.SEPOLIA
+    ) -> tuple[str, str, bool]:
+        """
+        Log decision to IPFS and then on-chain before execution.
+        
+        Implements the workflow step:
+        "The ExecutorAgent creates a detailed JSON object containing the transaction plan,
+        the risk analysis, and a timestamp. It then computes a Keccak-256 hash of this data
+        and uploads the JSON object to IPFS, receiving a unique content identifier (CID) in return."
+        
+        Args:
+            decision_data: Dictionary with transaction plan, risk analysis, timestamp
+            agent_wallet_address: Address of the AgentWallet contract
+            network: Blockchain network to use
+            
+        Returns:
+            Tuple of (decision_hash, ipfs_cid, success)
+        """
+        logger.info("Logging decision to IPFS and blockchain...")
+        
+        try:
+            # Step 1: Upload to IPFS
+            from app.storage.ipfs import get_ipfs_service
+            ipfs_service = get_ipfs_service()
+            
+            ipfs_cid, decision_hash = await ipfs_service.upload_decision(decision_data)
+            logger.info(f"Decision uploaded to IPFS: CID={ipfs_cid}, Hash={decision_hash}")
+            
+            # Step 2: Call logDecision on AgentWallet contract
+            if self.blockchain_service:
+                tx_success = await self.blockchain_service.log_decision(
+                    agent_wallet_address=agent_wallet_address,
+                    decision_hash=decision_hash,
+                    ipfs_cid=ipfs_cid,
+                    network=network
+                )
+                
+                if tx_success:
+                    logger.info(f"Decision logged on-chain: {decision_hash}")
+                    return decision_hash, ipfs_cid, True
+                else:
+                    logger.error("Failed to log decision on-chain")
+                    return decision_hash, ipfs_cid, False
+            else:
+                logger.warning("Blockchain service not available, skipping on-chain logging")
+                return decision_hash, ipfs_cid, False
+                
+        except Exception as e:
+            logger.error(f"Error logging decision: {e}", exc_info=True)
+            return "", "", False
+    
     async def execute_transaction(
         self,
         context: DecisionContext,

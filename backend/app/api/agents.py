@@ -76,10 +76,13 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
     Process a natural language request through the LangChain agent system.
     
     The agent will:
-    1. Parse the natural language input
-    2. Determine the appropriate action
-    3. Generate a structured decision
-    4. Return the decision for approval/execution
+    1. Check if the request is clear (if not, request clarification)
+    2. Parse the natural language input
+    3. Determine the appropriate action
+    4. Evaluate risk
+    5. For high-risk: request manual approval
+    6. For low-risk: execute automatically
+    7. Return the decision/result
     
     Implements FR-001: LangChain Agent Orchestration
     """
@@ -96,7 +99,44 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
         # Process request through orchestrator
         logger.info(f"Processing agent request: {request.request[:100]}")
         
-        # Create planner agent for initial decision
+        # Step 1: Check request clarity (handle ambiguous requests)
+        from app.agents.communicator import CommunicatorAgent
+        communicator = CommunicatorAgent()
+        
+        is_clear, missing_info = await communicator.check_request_clarity(request.request)
+        
+        if not is_clear:
+            # Request clarification
+            question = await communicator.formulate_clarifying_question(
+                context=DecisionContext(
+                    user_id=request.user_id or "default",
+                    wallet_address=getattr(request, "wallet_address", "default"),
+                    request=request.request
+                ),
+                ambiguous_request=request.request,
+                missing_information=missing_info
+            )
+            
+            execution_time = time.time() - start_time
+            
+            return AgentResponse(
+                success=False,
+                message="Request requires clarification",
+                decision=AgentDecision(
+                    decision_id=f"clarify_{int(time.time())}",
+                    intent="clarification_required",
+                    action_type="clarification",
+                    parameters={"question": question, "missing": missing_info},
+                    reasoning=f"The request is ambiguous. Missing: {', '.join(missing_info)}",
+                    risk_score=0.0,
+                    estimated_cost=0.0,
+                    requires_approval=False
+                ),
+                execution_time=execution_time,
+                agent_status=AgentStatus.WAITING
+            )
+        
+        # Step 2: Create planner agent for initial decision
         planner = PlannerAgent()
         
         # Prepare context from request
@@ -121,8 +161,22 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
             reasoning=decision_result.get("reasoning", "Analyzed request and determined appropriate action"),
             risk_score=decision_result.get("risk_score", 0.5),
             estimated_cost=decision_result.get("estimated_cost", 0.001),
-            requires_approval=decision_result.get("risk_score", 0.5) > 0.5
+            requires_approval=decision_result.get("risk_score", 0.5) > 0.5 or decision_result.get("requires_approval", False)
         )
+        
+        # If high-risk, return decision for manual approval
+        if agent_decision.requires_approval:
+            logger.info(f"High-risk transaction detected: {decision_id}")
+            
+            execution_time = time.time() - start_time
+            
+            return AgentResponse(
+                success=True,
+                message="High-risk transaction requires manual approval",
+                decision=agent_decision,
+                execution_time=execution_time,
+                agent_status=AgentStatus.WAITING_APPROVAL
+            )
         
         # Store in memory
         try:
@@ -453,3 +507,70 @@ async def reset_agent(agent_id: str):
     except Exception as e:
         logger.error(f"Error resetting agent: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error resetting agent: {str(e)}")
+
+
+@router.post("/approval/respond", summary="Respond to manual approval request")
+async def respond_to_approval(
+    approval_id: str,
+    approved: bool,
+    user_id: str
+):
+    """
+    Handle user's response to a high-risk transaction approval request.
+    
+    Implements workflow: "If the user approves, they click an 'Approve' button,
+    which sends a confirmation to the backend. The workflow then proceeds as
+    described in the 'happy path'. If the user rejects, they click a 'Reject'
+    button. The backend cancels the transaction."
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        result = await orchestrator.handle_approval_response(
+            approval_id=approval_id,
+            approved=approved,
+            user_id=user_id
+        )
+        
+        return {
+            "success": result.get("success", False),
+            "message": "Approved and executed" if approved else "Rejected by user",
+            "result": result.get("result"),
+            "execution": result.get("execution")
+        }
+        
+    except Exception as e:
+        logger.error(f"Error handling approval response: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.post("/clarification/respond", summary="Respond to clarification request")
+async def respond_to_clarification(
+    clarification_id: str,
+    answer: str,
+    user_id: str
+):
+    """
+    Handle user's response to a clarification request for an ambiguous request.
+    
+    Implements workflow: "The user provides more information, and the workflow
+    restarts."
+    """
+    try:
+        orchestrator = get_orchestrator()
+        
+        result = await orchestrator.handle_clarification_response(
+            clarification_id=clarification_id,
+            answer=answer,
+            user_id=user_id
+        )
+        
+        return {
+            "success": result.get("success", False),
+            "message": "Request clarified and processing restarted",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error handling clarification response: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

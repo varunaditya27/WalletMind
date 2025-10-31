@@ -162,13 +162,19 @@ async def register_user(request: RegisterRequest):
             
             # Generate access and refresh tokens
             auth_service = get_auth_service()
-            access_token = auth_service.create_access_token(
+            from app.security.auth import UserRole, TokenType
+            
+            access_token = auth_service.create_jwt_token(
                 user_id=new_user.id,
-                username=new_user.username
+                role=UserRole.USER,
+                token_type=TokenType.ACCESS,
+                additional_claims={"username": new_user.username}
             )
-            refresh_token = auth_service.create_refresh_token(
+            refresh_token = auth_service.create_jwt_token(
                 user_id=new_user.id,
-                username=new_user.username
+                role=UserRole.USER,
+                token_type=TokenType.REFRESH,
+                additional_claims={"username": new_user.username}
             )
             
             # Create session
@@ -272,13 +278,19 @@ async def login_user(request: LoginRequest):
             
             # Generate tokens
             auth_service = get_auth_service()
-            access_token = auth_service.create_access_token(
+            from app.security.auth import UserRole, TokenType
+            
+            access_token = auth_service.create_jwt_token(
                 user_id=user.id,
-                username=user.username
+                role=UserRole.USER,
+                token_type=TokenType.ACCESS,
+                additional_claims={"username": user.username}
             )
-            refresh_token = auth_service.create_refresh_token(
+            refresh_token = auth_service.create_jwt_token(
                 user_id=user.id,
-                username=user.username
+                role=UserRole.USER,
+                token_type=TokenType.REFRESH,
+                additional_claims={"username": user.username}
             )
             
             # Create session
@@ -338,11 +350,11 @@ async def get_current_user(request: Request):
         
         # Verify token
         auth_service = get_auth_service()
-        payload = auth_service.verify_token(token)
+        payload = auth_service.validate_jwt_token(token)
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         
-        user_id = payload.get("user_id")
+        user_id = payload.get("sub")
         
         # Connect to database
         db = DatabaseService()
@@ -379,7 +391,7 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=500, detail="Failed to retrieve user")
 
 
-@router.put("/me", response_model=UserProfile, summary="Update user profile")
+@router.put("/profile", response_model=UserProfile, summary="Update profile")
 async def update_user_profile(update_request: UpdateProfileRequest, request: Request):
     """
     Update the current user's profile.
@@ -392,11 +404,11 @@ async def update_user_profile(update_request: UpdateProfileRequest, request: Req
         
         token = auth_header.split(" ")[1]
         auth_service = get_auth_service()
-        payload = auth_service.verify_token(token)
+        payload = auth_service.validate_jwt_token(token)
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         
-        user_id = payload.get("user_id")
+        user_id = payload.get("sub")
         
         # Connect to database
         db = DatabaseService()
@@ -471,11 +483,11 @@ async def complete_onboarding(onboarding_request: CompleteOnboardingRequest, req
         
         token = auth_header.split(" ")[1]
         auth_service = get_auth_service()
-        payload = auth_service.verify_token(token)
+        payload = auth_service.validate_jwt_token(token)
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         
-        user_id = payload.get("user_id")
+        user_id = payload.get("sub")
         
         # Connect to database
         db = DatabaseService()
@@ -533,9 +545,9 @@ async def logout_user(request: Request):
         
         # Verify token
         auth_service = get_auth_service()
-        payload = auth_service.verify_token(token)
+        payload = auth_service.validate_jwt_token(token)
         if payload:
-            user_id = payload.get("user_id")
+            user_id = payload.get("sub")
             
             # Connect to database
             db = DatabaseService()
