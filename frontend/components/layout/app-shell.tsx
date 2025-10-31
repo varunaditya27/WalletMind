@@ -113,7 +113,7 @@ export function AppShell({ children }: PropsWithChildren) {
             );
           })}
         </nav>
-        <div className="mt-auto space-y-4 pt-10">
+        <div className="mt-6 space-y-4 pt-6">
           {currentUser && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex items-start gap-3">

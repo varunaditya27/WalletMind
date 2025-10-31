@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
+import { authService } from "@/lib/services/auth-service";
 import type { APIProviderInfo, WalletStatusResponse } from "@/lib/types";
 import { useShallow } from "zustand/react/shallow";
 
@@ -262,11 +263,15 @@ function ToggleCard({ label, description, active, disabled, onToggle }: ToggleCa
 }
 
 function deriveConnections(walletStatus: WalletStatusResponse | null | undefined): ConnectionCard[] {
+  // Get current user's wallet address from auth service
+  const currentUser = authService.getUser();
+  const userWalletAddress = currentUser?.wallet_address || "Not connected";
+  
   if (!walletStatus) {
     return [
       {
         name: "Owner Safe",
-        address: "0x0000...0000",
+        address: userWalletAddress,
         status: "Not connected",
         variant: "outline" as const,
         icon: Lock,

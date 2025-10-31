@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, ArrowUpRight, DatabaseZap, ShieldCheck, Zap } from "lucide-react";
 
@@ -15,7 +15,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
-import type { AgentHealth, AuditEntry, WebsocketEvent } from "@/lib/types";
+import { createAgent } from "@/lib/services/walletmind-service";
+import type { AgentHealth, AuditEntry, WebsocketEvent, AgentType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 
@@ -26,6 +27,9 @@ const highlightIcons = {
 } as const;
 
 export function DashboardScreen() {
+  const [deployingAgent, setDeployingAgent] = useState(false);
+  const [deploymentError, setDeploymentError] = useState<string | null>(null);
+  
   const {
     balances,
     networks,
@@ -55,6 +59,38 @@ export function DashboardScreen() {
   useEffect(() => {
     initializeDashboard();
   }, [initializeDashboard]);
+
+  const handleDeployAgent = async () => {
+    setDeployingAgent(true);
+    setDeploymentError(null);
+    
+    try {
+      // Deploy a new executor agent by default
+      const agentTypes: AgentType[] = ["planner", "executor", "evaluator", "communicator"];
+      const randomType = agentTypes[Math.floor(Math.random() * agentTypes.length)];
+      
+      const result = await createAgent({
+        agent_type: randomType,
+        name: `${randomType.charAt(0).toUpperCase() + randomType.slice(1)} Agent - ${new Date().toLocaleTimeString()}`,
+        config: {
+          created_from: "dashboard",
+          timestamp: new Date().toISOString(),
+        },
+      });
+      
+      // Show success notification
+      alert(`Agent deployed successfully!\n\nAgent ID: ${result.agent_id}\nType: ${result.agent_type}\nStatus: ${result.status}`);
+      
+      // Optionally refresh dashboard to show new agent
+      initializeDashboard();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to deploy agent";
+      setDeploymentError(errorMessage);
+      alert(`Error deploying agent: ${errorMessage}`);
+    } finally {
+      setDeployingAgent(false);
+    }
+  };
 
   const balanceCards = useMemo(() => {
     if (!balances.length) {
@@ -207,13 +243,11 @@ export function DashboardScreen() {
           <Button 
             size="sm" 
             title="Deploy a new AI agent to the system"
-            onClick={() => {
-              // TODO: Implement agent deployment
-              alert("Agent deployment functionality will be implemented soon");
-            }}
+            onClick={handleDeployAgent}
+            disabled={deployingAgent}
           >
             <ArrowUpRight className="h-4 w-4" />
-            Deploy New Agent
+            {deployingAgent ? "Deploying..." : "Deploy New Agent"}
           </Button>
         </div>
       </div>
