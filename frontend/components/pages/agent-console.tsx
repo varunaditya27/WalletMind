@@ -108,8 +108,13 @@ export function AgentConsoleScreen() {
         <div>
           <p className="text-xs uppercase tracking-[0.4em] text-muted">Agent cognition</p>
           <h1 className="text-2xl font-semibold text-foreground">Live reasoning stream</h1>
+          <p className="mt-1 text-sm text-muted">
+            Watch your AI agents think and make decisions in real-time
+          </p>
         </div>
-        <Badge variant={loading ? "outline" : "gold"}>{loading ? "Syncing cognition" : "AI thinking · pulse active"}</Badge>
+        <Badge variant={loading ? "outline" : "gold"} className={loading ? "animate-pulse" : ""}>
+          {loading ? "Syncing cognition..." : "AI thinking · pulse active"}
+        </Badge>
       </div>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_minmax(0,0.9fr)]">
@@ -122,9 +127,18 @@ export function AgentConsoleScreen() {
             <CardDescription>Planner → Evaluator reasoning path in chronological order.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {cognitionNodes.length === 0 && (
+            {loading && (
+              <div className="rounded-2xl border border-white/5 bg-black/20 p-6 text-sm text-muted animate-pulse">
+                Loading agent cognition stream...
+              </div>
+            )}
+            {!loading && cognitionNodes.length === 0 && (
               <div className="rounded-2xl border border-white/5 bg-black/20 p-6 text-sm text-muted">
-                Waiting for recent cognition events…
+                <p className="font-semibold">No recent cognition events</p>
+                <p className="mt-2 text-xs">
+                  Agent thoughts will appear here when the Planner and Evaluator process decisions.
+                  Try making a transaction request to see the agents think.
+                </p>
               </div>
             )}
             {cognitionNodes.map((node, index) => (
@@ -157,9 +171,17 @@ export function AgentConsoleScreen() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {conversation.length === 0 && (
+              {loading && (
+                <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-muted animate-pulse">
+                  Loading conversations...
+                </div>
+              )}
+              {!loading && conversation.length === 0 && (
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-muted">
-                  No operator conversations yet.
+                  <p className="font-semibold">No conversations yet</p>
+                  <p className="mt-2 text-xs">
+                    Messages between you and the WalletMind agents will appear here.
+                  </p>
                 </div>
               )}
               {conversation.map((message, index) => (
@@ -190,9 +212,17 @@ export function AgentConsoleScreen() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {taskGraph.length === 0 && (
+              {loading && (
+                <div className="rounded-2xl border border-white/5 bg-black/20 p-4 text-sm text-muted animate-pulse">
+                  Loading task graph...
+                </div>
+              )}
+              {!loading && taskGraph.length === 0 && (
                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4 text-sm text-muted">
-                  No active tasks registered.
+                  <p className="font-semibold">No active tasks</p>
+                  <p className="mt-2 text-xs">
+                    Multi-step tasks broken down by agents will appear here.
+                  </p>
                 </div>
               )}
               {taskGraph.map((task, index) => (

@@ -18,12 +18,17 @@ datasource db {
 
 model User {
   id            String   @id @default(uuid())
-  email         String   @unique
+  email         String?  @unique // Optional for wallet-only auth
   username      String   @unique
-  passwordHash  String   @map("password_hash")
+  passwordHash  String?  @map("password_hash") // Optional for wallet-only auth
+  walletAddress String?  @unique @map("wallet_address") // Primary MetaMask wallet
+  nonce         String?  // For wallet signature verification
   role          UserRole @default(USER)
   isActive      Boolean  @default(true) @map("is_active")
   emailVerified Boolean  @default(false) @map("email_verified")
+  onboardingComplete Boolean @default(false) @map("onboarding_complete")
+  profilePicture String? @map("profile_picture")
+  bio           String?
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
   lastLoginAt   DateTime? @map("last_login_at")

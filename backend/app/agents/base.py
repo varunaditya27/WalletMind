@@ -9,11 +9,14 @@ Each agent inherits from this base to access LLM, memory, and tools.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.tools import BaseTool
-from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages.base import BaseMessage
+from langchain_core.messages.human import HumanMessage
+from langchain_core.messages.ai import AIMessage
+from langchain_core.messages.system import SystemMessage
+from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools.base import BaseTool
+from langchain.agents.factory import create_agent
 from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
@@ -100,32 +103,22 @@ class BaseAgent(ABC):
         """
         pass
     
-    def _create_agent_executor(self) -> AgentExecutor:
-        """Create LangChain agent executor with tools"""
+    def _create_agent_executor(self):
+        """Create LangChain agent using create_agent factory"""
         system_prompt = self.get_system_prompt()
-        
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history", optional=True),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad")
         ])
-        
-        # Create agent with tools
-        agent = create_openai_functions_agent(
+        # Use create_agent factory to build agent
+        agent = create_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=prompt
         )
-        
-        return AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            verbose=self.config.verbose,
-            max_iterations=self.config.max_iterations,
-            handle_parsing_errors=True,
-            return_intermediate_steps=True
-        )
+        return agent
     
     async def process(
         self,
@@ -162,25 +155,22 @@ class BaseAgent(ABC):
                 "input": input_text,
                 "chat_history": chat_history
             })
-            
-            # Extract reasoning from intermediate steps
-            reasoning = self._extract_reasoning(result.get("intermediate_steps", []))
-            
+            # The new agent returns output directly, intermediate_steps may not be present
+            output = result.get("output", result)
+            reasoning = self._extract_reasoning(result.get("intermediate_steps", [])) if "intermediate_steps" in result else "Direct response without tool use"
             response = AgentResponse(
                 agent_type=self.agent_type,
                 success=True,
-                result=result.get("output", {}),
+                result=output,
                 reasoning=reasoning,
                 metadata={
-                    "iterations": len(result.get("intermediate_steps", [])),
-                    "tools_used": [step[0].tool for step in result.get("intermediate_steps", [])]
+                    "iterations": len(result.get("intermediate_steps", [])) if "intermediate_steps" in result else 1,
+                    "tools_used": [step[0].tool for step in result.get("intermediate_steps", [])] if "intermediate_steps" in result else []
                 }
             )
-            
             # Store in memory
             if self.memory_service and context.wallet_address:
                 await self._store_in_memory(context, response)
-            
             logger.info(f"{self.agent_type} completed successfully")
             return response
             
@@ -246,7 +236,7 @@ class BaseAgent(ABC):
         """Synchronous invocation for simple cases"""
         result = self.agent_executor.invoke({"input": input_text})
         return result
-    
+
     async def ainvoke(self, input_text: str, chat_history: Optional[List[BaseMessage]] = None) -> Dict[str, Any]:
         """Async invocation with optional chat history"""
         result = await self.agent_executor.ainvoke({

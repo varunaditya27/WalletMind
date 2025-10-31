@@ -22,10 +22,9 @@ class ConnectionManager:
         }
 
     async def connect(self, websocket: WebSocket, channel: str = "agents"):
-        """Accept and register a new WebSocket connection"""
+        """Register a new WebSocket connection (accept must be called before)"""
         if channel not in self.active_connections:
             self.active_connections[channel] = set()
-        await websocket.accept()
         self.active_connections[channel].add(websocket)
 
     def disconnect(self, websocket: WebSocket, channel: str = "agents"):
@@ -131,6 +130,7 @@ async def agent_updates(websocket: WebSocket):
     - Decision-making progress
     - Agent health metrics
     """
+    await websocket.accept()
     await manager.connect(websocket, "agents")
     
     try:
@@ -157,6 +157,7 @@ async def transaction_updates(websocket: WebSocket):
     - Transaction failed
     - Gas price updates
     """
+    await websocket.accept()
     await manager.connect(websocket, "transactions")
     
     try:
@@ -182,6 +183,7 @@ async def decision_updates(websocket: WebSocket):
     - Decision executed
     - Decision verification results
     """
+    await websocket.accept()
     await manager.connect(websocket, "decisions")
     
     try:
@@ -206,6 +208,7 @@ async def verification_updates(websocket: WebSocket):
     - Integrity results
     - Provenance chain updates
     """
+    await websocket.accept()
     await manager.connect(websocket, "verification")
     
     try:

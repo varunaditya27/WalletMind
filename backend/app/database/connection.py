@@ -9,6 +9,11 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from prisma import Prisma
 from prisma.errors import PrismaError
+# ClientAlreadyRegisteredError raised when Prisma client is registered more than once
+try:
+    from prisma._registry import ClientAlreadyRegisteredError
+except Exception:  # pragma: no cover - fallback for different prisma versions
+    ClientAlreadyRegisteredError = Exception
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +45,19 @@ class DatabaseManager:
             Connected Prisma client
         """
         if self._client is None or not self._client.is_connected():
-            self._client = Prisma(auto_register=True)
-            await self._client.connect()
+            # Try to create and register Prisma client. If a client was already
+            # registered in this process (e.g., during startup), Prisma will raise
+            # ClientAlreadyRegisteredError. In that case we create the client
+            # without auto-register to avoid the registry conflict.
+            try:
+                self._client = Prisma(auto_register=True)
+                await self._client.connect()
+            except ClientAlreadyRegisteredError:
+                logger.warning("Prisma client already registered; creating client without auto_register")
+                # Create client without auto register and connect
+                self._client = Prisma(auto_register=False)
+                await self._client.connect()
+
             logger.info("Database connected successfully")
         
         return self._client

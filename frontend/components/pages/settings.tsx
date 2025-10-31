@@ -75,12 +75,17 @@ export function SettingsScreen() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {connections.length === 0 && (
+            {loading && (
+              <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm text-muted animate-pulse">
+                Loading guardian connections...
+              </div>
+            )}
+            {!loading && connections.length === 0 && (
               <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm text-muted">
                 No guardians found. Connect a Safe owner to enable guardrails.
               </div>
             )}
-            {connections.map((conn, index) => (
+            {!loading && connections.map((conn, index) => (
               <motion.div
                 key={conn.address}
                 className="flex items-center justify-between rounded-2xl border border-white/5 bg-black/30 p-4"
@@ -113,12 +118,23 @@ export function SettingsScreen() {
             <CardDescription>WalletMind maintains auto-top-ups per provider.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {providerCards.length === 0 && (
-              <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm text-muted">
-                No providers configured yet. Add an API key via the backend settings service.
+            {loading && (
+              <div className="rounded-2xl border border-white/5 bg-black/30 p-4 text-sm text-muted animate-pulse">
+                Loading API providers...
               </div>
             )}
-            {providerCards.map((provider, index) => (
+            {!loading && providerCards.length === 0 && (
+              <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+                <p className="text-sm text-muted mb-2">No providers configured yet.</p>
+                <p className="text-xs text-muted/70">
+                  Configure API providers in your backend .env file:
+                </p>
+                <code className="text-xs text-accent block mt-2 font-mono">
+                  GROQ_API_KEY=your_key_here
+                </code>
+              </div>
+            )}
+            {!loading && providerCards.map((provider, index) => (
               <motion.div
                 key={provider.provider}
                 className="rounded-2xl border border-white/5 bg-black/30 p-4"

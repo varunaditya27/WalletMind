@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 
-from .connection import get_db
+from .connection import get_db, close_db
 from .repositories import (
     UserRepository,
     WalletRepository,
@@ -43,6 +43,27 @@ class DatabaseService:
         """Get database connection"""
         if self._db is None:
             self._db = await get_db()
+        return self._db
+
+    # --- Compatibility helpers ---
+    async def connect(self):
+        """Compatibility: ensure prisma client is connected and available as `prisma`."""
+        await self._get_db()
+        return self._db
+
+    async def disconnect(self):
+        """Compatibility: disconnect the prisma client (delegates to connection.close_db)."""
+        try:
+            if self._db is not None:
+                await close_db()
+        finally:
+            self._db = None
+
+    @property
+    def prisma(self):
+        """Expose the underlying Prisma client (requires connect() called first)."""
+        if self._db is None:
+            raise RuntimeError("Prisma client not initialized. Call 'await DatabaseService.connect()' first.")
         return self._db
     
     @property

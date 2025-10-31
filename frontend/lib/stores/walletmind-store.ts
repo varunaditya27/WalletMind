@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 
-import { PRIMARY_WALLET_ADDRESS, WS_BASE_URL } from "@/lib/env";
+import { WS_BASE_URL } from "@/lib/env";
+import { authService } from "@/lib/services/auth-service";
 import {
   fetchAgentActivity,
   fetchAgentHealth,
@@ -30,6 +31,15 @@ import type {
   WalletStatusResponse,
   WebsocketEvent,
 } from "@/lib/types";
+
+/**
+ * Get the current wallet address from authenticated user
+ * Falls back to a default address if not authenticated (for initial load)
+ */
+function getCurrentWalletAddress(): string {
+  const user = authService.getUser();
+  return user?.wallet_address || "0x0000000000000000000000000000000000000000";
+}
 
 interface LoadingState {
   dashboard: boolean;
@@ -137,16 +147,17 @@ export const useWalletMindStore = create<WalletMindState>((set, get) => ({
     }));
 
     try {
+      const walletAddress = getCurrentWalletAddress();
       const [networks, historyResponse, stats, agentHealth, audit] = await Promise.all([
         fetchNetworks().catch(() => []),
-        fetchTransactionHistory(PRIMARY_WALLET_ADDRESS, 12).catch(() => ({
+        fetchTransactionHistory(walletAddress, 12).catch(() => ({
           transactions: [],
           total: 0,
           wallet_address: "",
         }) as TransactionHistoryResponse),
         fetchTransactionStats().catch(() => null),
         fetchAgentHealth().catch(() => []),
-        fetchAuditTrail(PRIMARY_WALLET_ADDRESS, 12).catch(() => ({ entries: [], total: 0, wallet_address: "" })),
+        fetchAuditTrail(walletAddress, 12).catch(() => ({ entries: [], total: 0, wallet_address: "" })),
       ]);
 
       const networkList = networks.length ? networks : state.networks;
@@ -194,9 +205,10 @@ export const useWalletMindStore = create<WalletMindState>((set, get) => ({
     }));
 
     try {
+      const walletAddress = getCurrentWalletAddress();
       const [activity, audit] = await Promise.all([
         fetchAgentActivity().catch(() => ({ activities: [], total: 0 })),
-        fetchAuditTrail(PRIMARY_WALLET_ADDRESS, 20).catch(() => ({ entries: [], total: 0 })),
+        fetchAuditTrail(walletAddress, 20).catch(() => ({ entries: [], total: 0 })),
       ]);
 
       set((current) => ({
@@ -226,8 +238,9 @@ export const useWalletMindStore = create<WalletMindState>((set, get) => ({
     }));
 
     try {
+      const walletAddress = getCurrentWalletAddress();
       const [historyResponse, stats] = await Promise.all([
-        fetchTransactionHistory(PRIMARY_WALLET_ADDRESS, 50).catch(() => ({
+        fetchTransactionHistory(walletAddress, 50).catch(() => ({
           transactions: [],
           total: 0,
           wallet_address: "",

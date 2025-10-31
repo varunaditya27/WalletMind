@@ -12,7 +12,7 @@ import logging
 import os
 
 # Import routers
-from app.api import agents, wallet, transactions, decisions, verification, external, websocket
+from app.api import agents, wallet, transactions, decisions, verification, external, websocket, auth
 
 # Import configuration
 from app.config import get_settings
@@ -234,6 +234,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(agents.router)
 app.include_router(wallet.router)
 app.include_router(transactions.router)

@@ -107,8 +107,8 @@ function Hero() {
           transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
         >
           <Button size="pill" className="px-8" asChild>
-            <Link href="/dashboard">
-              Launch Control Center
+            <Link href="/onboarding">
+              Get Started
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
@@ -292,8 +292,8 @@ function CallToAction() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Button size="pill" className="px-8" asChild>
-            <Link href="/dashboard">
-              Open Dashboard
+            <Link href="/onboarding">
+              Get Started
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
