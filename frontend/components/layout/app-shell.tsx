@@ -232,7 +232,7 @@ function AppTopBar({
 
 function DecorativeBackdrop() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-wm-gradient" />
       <div className="absolute inset-0 bg-wm-radial-blue mix-blend-screen" />
       <div className="absolute inset-0 bg-wm-radial-gold mix-blend-screen" />

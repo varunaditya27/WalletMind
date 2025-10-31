@@ -57,8 +57,8 @@ export default function RootLayout({
       >
         <CursorGlow />
         <div className="relative min-h-screen bg-wm-gradient">
-          <div className="absolute inset-0 bg-wm-radial-blue" aria-hidden />
-          <div className="absolute inset-0 bg-wm-radial-gold" aria-hidden />
+          <div className="absolute inset-0 bg-wm-radial-blue" aria-hidden="true" />
+          <div className="absolute inset-0 bg-wm-radial-gold" aria-hidden="true" />
           <div className="relative z-10 min-h-screen">{children}</div>
         </div>
       </body>

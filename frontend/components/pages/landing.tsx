@@ -278,8 +278,8 @@ function VerificationPanel() {
 function CallToAction() {
   return (
     <section id="cta" className="glass-panel relative overflow-hidden px-10 py-12">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(0,191,255,0.25),transparent_60%)]" aria-hidden />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(230,180,0,0.2),transparent_65%)]" aria-hidden />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(0,191,255,0.25),transparent_60%)]" aria-hidden="true" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(230,180,0,0.2),transparent_65%)]" aria-hidden="true" />
       <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-muted">Launch Autonomous Finance</p>
