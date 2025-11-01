@@ -143,6 +143,12 @@ export async function sendAgentRequest(request: AgentRequest): Promise<AgentResp
   return apiPost<AgentResponse>("/api/agents/request", request);
 }
 
+export async function* sendAgentRequestStream(request: AgentRequest) {
+  const { apiPostStream } = await import("../api-client");
+  yield* apiPostStream("/api/agents/request/stream", request);
+}
+
+
 export async function respondToApproval(
   decisionId: string,
   approved: boolean,

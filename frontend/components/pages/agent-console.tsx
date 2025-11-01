@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/card";
 import { AgentChat } from "@/components/ui/agent-chat";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
-import { sendAgentRequest, respondToApproval, respondToClarification } from "@/lib/services/walletmind-service";
+import { respondToApproval, respondToClarification } from "@/lib/services/walletmind-service";
 import { authService } from "@/lib/services/auth-service";
-import type { AuditEntry, WebsocketEvent, ChatMessage } from "@/lib/types";
+import type { AuditEntry, WebsocketEvent, ChatMessage, AgentDecision } from "@/lib/types";
 import { useShallow } from "zustand/react/shallow";
 
 export function AgentConsoleScreen() {
@@ -65,45 +65,89 @@ export function AgentConsoleScreen() {
     setIsLoadingChat(true);
     setIsTyping(true);
 
+    // Create placeholder for agent message that we'll update as stream comes in
+    const agentMessageId = `agent-${Date.now()}`;
+    let streamedContent = "";
+    let finalDecision: AgentDecision | null = null;
+
     try {
-      // Send request to agent
-      const response = await sendAgentRequest({
+      // Import streaming function dynamically
+      const { sendAgentRequestStream } = await import("@/lib/services/walletmind-service");
+      
+      // Add empty agent message that will be updated
+      setChatMessages(prev => [...prev, {
+        id: agentMessageId,
+        role: "agent",
+        content: "",
+        timestamp: new Date().toISOString(),
+      }]);
+
+      // Process stream
+      for await (const event of sendAgentRequestStream({
         user_id: currentUser.id,
         request: message,
         context: {
           wallet_address: currentUser.wallet_address,
           username: currentUser.username,
         },
-      });
+      })) {
+        if (event.type === "status") {
+          // Update status message (shown as typing indicator)
+          // You could show this in a status indicator if desired
+        } else if (event.type === "chunk") {
+          // Append content chunk
+          streamedContent += event.content || "";
+          
+          // Update the agent message in real-time
+          setChatMessages(prev => prev.map(msg => 
+            msg.id === agentMessageId 
+              ? { ...msg, content: streamedContent }
+              : msg
+          ));
+        } else if (event.type === "done") {
+          // Final event with decision
+          setIsTyping(false);
+          finalDecision = (event.decision as AgentDecision) || null;
+          
+          // Update final message with decision
+          setChatMessages(prev => prev.map(msg => 
+            msg.id === agentMessageId 
+              ? { 
+                  ...msg, 
+                  content: streamedContent || event.message || "Request processed",
+                  decision: finalDecision || undefined,
+                  needsApproval: finalDecision?.requires_approval || false,
+                  needsClarification: finalDecision?.action_type === "clarification" || false,
+                }
+              : msg
+          ));
 
-      setIsTyping(false);
+          // Handle decision states
+          if (finalDecision?.requires_approval && finalDecision.decision_id) {
+            setPendingDecisionId(finalDecision.decision_id);
+          } else {
+            setPendingDecisionId(null);
+          }
 
-      // Add agent response to chat
-      const agentMessage: ChatMessage = {
-        id: `agent-${Date.now()}`,
-        role: "agent",
-        content: response.message,
-        timestamp: new Date().toISOString(),
-        decision: response.decision || undefined,
-        needsApproval: response.decision?.requires_approval || false,
-        needsClarification: response.decision?.action_type === "clarification" || false,
-      };
-
-      setChatMessages(prev => [...prev, agentMessage]);
-
-      // If successful execution, show confirmation
-      if (response.success && response.transaction_hash) {
-        const confirmMessage: ChatMessage = {
-          id: `system-${Date.now()}`,
-          role: "system",
-          content: `✅ Transaction executed successfully!\n\nTransaction Hash: ${response.transaction_hash}\n\nYou can view it on the blockchain explorer.`,
-          timestamp: new Date().toISOString(),
-        };
-        setChatMessages(prev => [...prev, confirmMessage]);
+          // If failed, show error
+          if (event.success === false) {
+            const errorMessage: ChatMessage = {
+              id: `error-${Date.now()}`,
+              role: "system",
+              content: `❌ ${event.message || "Request failed"}`,
+              timestamp: new Date().toISOString(),
+            };
+            setChatMessages(prev => [...prev, errorMessage]);
+          }
+        }
       }
 
     } catch (error) {
       setIsTyping(false);
+      
+      // Remove the placeholder message if streaming failed
+      setChatMessages(prev => prev.filter(msg => msg.id !== agentMessageId));
+      
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: "system",
@@ -113,6 +157,7 @@ export function AgentConsoleScreen() {
       setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoadingChat(false);
+      setIsTyping(false);
     }
   }, []);
 

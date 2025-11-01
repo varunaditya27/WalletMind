@@ -103,28 +103,35 @@ class BaseAgent(ABC):
         pass
     
     def _create_agent_executor(self):
-        """Create LangChain agent executor - simplified to direct LLM usage"""
-        # For now, we'll use direct LLM invocation instead of complex agent chains
-        # This is simpler and works well for our use case where agents analyze and make decisions
-        # rather than use tools extensively
-        
+        """Create agent executor with tool calling capability"""
         # Get tool names for the system prompt
         tool_names = ", ".join([tool.name for tool in self.tools]) if self.tools else "None"
         
-        # Create a simple prompt template for the agent
+        # Create system prompt
         system_prompt = self.get_system_prompt()
         
         # Format the system prompt with tool names if it has the placeholder
         if "{tool_names}" in system_prompt:
             system_prompt = system_prompt.replace("{tool_names}", tool_names)
         
+        # Create prompt template
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history", optional=True),
             ("human", "{input}")
         ])
         
-        # Return None - we'll use direct LLM invocation in the process method
+        # Bind tools to LLM if available
+        if self.tools:
+            try:
+                logger.info(f"Binding {len(self.tools)} tools to LLM for {self.agent_type} agent")
+                self.llm_with_tools = self.llm.bind_tools(self.tools)
+            except Exception as e:
+                logger.warning(f"Failed to bind tools to LLM: {e}. Will use direct invocation.")
+                self.llm_with_tools = None
+        else:
+            self.llm_with_tools = None
+        
         return None
     
     async def process(
@@ -133,7 +140,7 @@ class BaseAgent(ABC):
         additional_input: Optional[str] = None
     ) -> AgentResponse:
         """
-        Process a request with this agent
+        Process a request with this agent using LLM with optional tool calling
         
         Args:
             context: Decision context with user request and metadata
@@ -143,7 +150,7 @@ class BaseAgent(ABC):
             AgentResponse with result and reasoning
         """
         try:
-            logger.info(f"{self.agent_type} processing request: {context.request[:100]}...")
+            logger.info(f"[{self.agent_type.upper()}] Processing: {context.request[:100]}...")
             
             # Retrieve relevant memory if available
             chat_history = []
@@ -157,41 +164,139 @@ class BaseAgent(ABC):
             if additional_input:
                 input_text = f"{input_text}\n\nAdditional instructions: {additional_input}"
             
-            # Execute agent using direct LLM invocation
-            messages = []
-            if chat_history:
-                messages.extend(chat_history)
-            
             # Format the prompt
             formatted_prompt = self.prompt.format_messages(
                 input=input_text,
                 chat_history=chat_history
             )
             
-            # Invoke LLM
-            response_message = await self.llm.ainvoke(formatted_prompt)
-            output = response_message.content
+            # Process with tools if available
+            tool_calls_made = []
+            final_output = ""
             
-            reasoning = f"Processed request using {self.agent_type} agent with LLM {self.config.llm_model}"
+            if self.llm_with_tools and self.tools:
+                logger.info(f"[{self.agent_type.upper()}] Using LLM with {len(self.tools)} tools available")
+                
+                # First LLM call - agent decides what to do
+                response_message = await self.llm_with_tools.ainvoke(formatted_prompt)
+                
+                # Check if LLM wants to use tools
+                if hasattr(response_message, 'tool_calls') and response_message.tool_calls:
+                    logger.info(f"[{self.agent_type.upper()}] LLM requested {len(response_message.tool_calls)} tool call(s)")
+                    
+                    # Execute each tool call
+                    tool_results = []
+                    for tool_call in response_message.tool_calls:
+                        tool_name = tool_call.get('name', '')
+                        tool_input = tool_call.get('args', {})
+                        
+                        logger.info(f"[{self.agent_type.upper()}] Executing tool: {tool_name}")
+                        logger.debug(f"Tool input: {tool_input}")
+                        
+                        # Find and execute the tool
+                        tool = next((t for t in self.tools if t.name == tool_name), None)
+                        if tool:
+                            try:
+                                # Execute tool (prefer async)
+                                if hasattr(tool, '_arun'):
+                                    tool_output = await tool._arun(**tool_input)
+                                else:
+                                    tool_output = tool._run(**tool_input)
+                                
+                                logger.info(f"[{self.agent_type.upper()}] Tool '{tool_name}' executed successfully")
+                                logger.debug(f"Tool output (truncated): {str(tool_output)[:200]}")
+                                
+                                tool_calls_made.append({
+                                    'tool': tool_name,
+                                    'input': tool_input,
+                                    'output': str(tool_output),
+                                    'success': True
+                                })
+                                tool_results.append(f"**Tool: {tool_name}**\nResult: {tool_output}")
+                                
+                            except Exception as tool_error:
+                                logger.error(f"[{self.agent_type.upper()}] Tool '{tool_name}' failed: {tool_error}", exc_info=True)
+                                error_msg = f"Error: {str(tool_error)}"
+                                tool_calls_made.append({
+                                    'tool': tool_name,
+                                    'input': tool_input,
+                                    'error': error_msg,
+                                    'success': False
+                                })
+                                tool_results.append(f"**Tool: {tool_name}**\nError: {error_msg}")
+                        else:
+                            logger.error(f"[{self.agent_type.upper()}] Tool '{tool_name}' not found")
+                            tool_results.append(f"**Tool: {tool_name}**\nError: Tool not available")
+                    
+                    # Second LLM call - synthesize final response from tool results
+                    if tool_results:
+                        tool_results_text = "\n\n".join(tool_results)
+                        synthesis_prompt = f"""Original request: {input_text}
+
+You called tools and received these results:
+
+{tool_results_text}
+
+Based on these tool results, provide a clear, concise final response to the user. 
+Include all relevant information from the tool outputs.
+Format your response with proper markdown for readability."""
+                        
+                        synthesis_messages = self.prompt.format_messages(
+                            input=synthesis_prompt,
+                            chat_history=[]
+                        )
+                        
+                        final_response = await self.llm.ainvoke(synthesis_messages)
+                        final_output = final_response.content
+                        
+                        logger.info(f"[{self.agent_type.upper()}] Synthesized final response from {len(tool_calls_made)} tool call(s)")
+                    else:
+                        final_output = response_message.content
+                else:
+                    # No tools called - use direct response
+                    final_output = response_message.content
+                    logger.info(f"[{self.agent_type.upper()}] No tools called, using direct LLM response")
+            else:
+                # No tools available - direct LLM invocation
+                logger.info(f"[{self.agent_type.upper()}] Using direct LLM (no tools)")
+                response_message = await self.llm.ainvoke(formatted_prompt)
+                final_output = response_message.content
+            
+            # Build response
+            reasoning = f"{self.agent_type.capitalize()} agent processed request"
+            if tool_calls_made:
+                successful = sum(1 for tc in tool_calls_made if tc.get('success', False))
+                reasoning += f" with {successful}/{len(tool_calls_made)} successful tool call(s)"
             
             response = AgentResponse(
                 agent_type=self.agent_type,
                 success=True,
-                result={"response": output, "context": context.dict()},
+                result={
+                    "response": final_output,
+                    "context": context.dict(),
+                    "tool_calls": tool_calls_made
+                },
                 reasoning=reasoning,
                 metadata={
                     "model": self.config.llm_model,
-                    "temperature": self.config.temperature
+                    "temperature": self.config.temperature,
+                    "tool_count": len(tool_calls_made),
+                    "tools_available": len(self.tools) if self.tools else 0
                 }
             )
+            
             # Store in memory
             if self.memory_service and context.wallet_address:
-                await self._store_in_memory(context, response)
-            logger.info(f"{self.agent_type} completed successfully")
+                try:
+                    await self._store_in_memory(context, response)
+                except Exception as mem_error:
+                    logger.warning(f"[{self.agent_type.upper()}] Failed to store in memory: {mem_error}")
+            
+            logger.info(f"[{self.agent_type.upper()}] ✓ Completed successfully")
             return response
             
         except Exception as e:
-            logger.error(f"{self.agent_type} error: {str(e)}", exc_info=True)
+            logger.error(f"[{self.agent_type.upper()}] ✗ Error: {str(e)}", exc_info=True)
             return AgentResponse(
                 agent_type=self.agent_type,
                 success=False,

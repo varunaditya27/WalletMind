@@ -74,3 +74,68 @@ export async function apiPostQuery<T>(path: string, params: Record<string, strin
   const usp = new URLSearchParams(params);
   return apiPost<T>(`${path}?${usp.toString()}`);
 }
+
+export type StreamEvent<T = unknown> = {
+  type: 'status' | 'chunk' | 'done';
+  message?: string;
+  content?: string;
+  success?: boolean;
+  decision?: T;
+  execution_time?: number;
+};
+
+export async function* apiPostStream<B = unknown>(
+  path: string,
+  body?: B
+): AsyncGenerator<StreamEvent, void, unknown> {
+  const response = await fetch(withBaseUrl(path), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed with status ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Response body is not readable");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          if (data.trim()) {
+            try {
+              const event = JSON.parse(data) as StreamEvent;
+              yield event;
+            } catch (e) {
+              console.warn("Failed to parse SSE data:", data, e);
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

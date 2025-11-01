@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2, AlertCircle, CheckCircle, XCircle, MessageSquare, Sparkles, Brain } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { ChatMessage } from "@/lib/types";
@@ -251,7 +253,38 @@ function MessageBubble({
               : "border border-white/5 bg-black/30 text-foreground"
           )}
         >
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // Style markdown elements to match our design
+                h1: ({ ...props }) => <h1 className="text-lg font-bold mb-2 text-accent" {...props} />,
+                h2: ({ ...props }) => <h2 className="text-base font-semibold mb-2 text-accent" {...props} />,
+                h3: ({ ...props }) => <h3 className="text-sm font-semibold mb-1 text-foreground" {...props} />,
+                p: ({ ...props }) => <p className="mb-2 last:mb-0 whitespace-pre-wrap" {...props} />,
+                strong: ({ ...props }) => <strong className="font-semibold text-accent" {...props} />,
+                em: ({ ...props }) => <em className="italic text-muted" {...props} />,
+                ul: ({ ...props }) => <ul className="list-disc list-inside mb-2 space-y-1" {...props} />,
+                ol: ({ ...props }) => <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />,
+                li: ({ ...props }) => <li className="text-foreground" {...props} />,
+                code: ({ className, children, ...props }) => {
+                  const isInline = !className;
+                  return isInline ? (
+                    <code className="px-1.5 py-0.5 rounded bg-white/10 text-accent font-mono text-xs" {...props}>
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="block p-2 rounded bg-black/40 text-foreground font-mono text-xs overflow-x-auto" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                a: ({ ...props }) => <a className="text-accent underline hover:text-accent/80" {...props} />,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
 
           {/* Decision details */}
           {message.decision && (

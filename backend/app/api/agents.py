@@ -2,13 +2,29 @@
 # Handles agent orchestration, decision-making, and memory management
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from typing import List, Optional, Dict, Any
+from fastapi.responses import StreamingResponse
+from typing import List, Optional, Dict, Any, AsyncGenerator
 import time
 from datetime import datetime
 import logging
 import hashlib
 import json
 import os
+import asyncio
+
+
+def serialize_for_json(obj):
+    """Recursively serialize objects for JSON, converting datetime to ISO format"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [serialize_for_json(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        return serialize_for_json(obj.__dict__)
+    else:
+        return obj
 
 from app.models.agent import (
     AgentRequest,
@@ -522,6 +538,284 @@ The Planner agent has analyzed your request and provided the response above."""
             execution_time=execution_time,
             agent_status=AgentStatus.ERROR
         )
+
+
+@router.post("/request/stream", summary="Process agent request with streaming (FR-001)")
+async def process_agent_request_stream(request: AgentRequest):
+    """
+    Process a natural language request with streaming response.
+    
+    Returns Server-Sent Events (SSE) stream with:
+    - status: Progress updates
+    - chunk: Message chunks as they're generated
+    - decision: Final decision object
+    - done: Final completion
+    """
+    
+    async def generate_stream() -> AsyncGenerator[str, None]:
+        start_time = time.time()
+        
+        try:
+            # Get services
+            orchestrator = get_orchestrator()
+            memory_service = get_memory_service()
+            blockchain_service = get_blockchain_service()
+            
+            # Send initial status
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing your request...'})}\n\n"
+            await asyncio.sleep(0.1)  # Small delay for better UX
+            
+            # Step 1: Check request clarity
+            communicator = orchestrator.communicator
+            is_clear, missing_info = await communicator.check_request_clarity(request.request)
+            
+            if not is_clear:
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Request needs clarification...'})}\n\n"
+                
+                question = await communicator.formulate_clarifying_question(
+                    context=DecisionContext(
+                        user_id=request.user_id or "default",
+                        wallet_address=getattr(request, "wallet_address", "default"),
+                        request=request.request
+                    ),
+                    ambiguous_request=request.request,
+                    missing_information=missing_info
+                )
+                
+                # Send clarification needed
+                clarification_response = {
+                    'type': 'done',
+                    'success': False,
+                    'message': 'Request requires clarification',
+                    'decision': {
+                        'decision_id': f"clarify_{int(time.time())}",
+                        'requires_approval': False,
+                        'parameters': {'question': question, 'missing': missing_info}
+                    }
+                }
+                yield f"data: {json.dumps(clarification_response)}\n\n"
+                return
+            
+            # Step 2: Process with planner
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Planning your request...'})}\n\n"
+            
+            planner = orchestrator.planner
+            decision_context = DecisionContext(
+                user_id=request.user_id or "default",
+                wallet_address=getattr(request, "wallet_address", "default"),
+                request=request.request,
+                metadata=request.context or {}
+            )
+            
+            planner_response = await planner.process(decision_context)
+            
+            if not planner_response.success:
+                error_response = {
+                    'type': 'done',
+                    'success': False,
+                    'message': f"Planner failed: {planner_response.error}",
+                    'execution_time': time.time() - start_time
+                }
+                yield f"data: {json.dumps(error_response)}\n\n"
+                return
+            
+            planner_result = planner_response.result.get("response", "")
+            
+            # Calculate risk and cost
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Evaluating risk...'})}\n\n"
+            
+            risk_score = 0.3
+            if any(word in planner_result.lower() for word in ["high risk", "dangerous", "unsafe", "warning"]):
+                risk_score = 0.8
+            elif any(word in planner_result.lower() for word in ["medium risk", "caution", "careful"]):
+                risk_score = 0.5
+            
+            is_transaction = any(word in request.request.lower() for word in ["send", "transfer", "pay", "swap"])
+            
+            # Calculate cost
+            estimated_cost = 0.0
+            transaction_amount = 0.0
+            gas_cost_eth = 0.0
+            
+            if is_transaction:
+                import re
+                amount_match = re.search(r'(\d+\.?\d*)\s*(eth|ether|sepolia|token)?', request.request.lower())
+                transaction_amount = float(amount_match.group(1)) if amount_match else 0.0
+                
+                base_gas = 21000
+                try:
+                    if blockchain_service and hasattr(blockchain_service, 'web3_provider'):
+                        provider = blockchain_service.web3_provider
+                        if provider and hasattr(provider, '_connections') and NetworkType.SEPOLIA in provider._connections:
+                            web3 = provider._connections[NetworkType.SEPOLIA]
+                            gas_price_wei = web3.eth.gas_price
+                            gas_cost_eth = (base_gas * gas_price_wei) / 1e18
+                            estimated_cost = transaction_amount + gas_cost_eth
+                        else:
+                            gas_cost_eth = (base_gas * 20e9) / 1e18
+                            estimated_cost = transaction_amount + gas_cost_eth
+                    else:
+                        gas_cost_eth = (base_gas * 20e9) / 1e18
+                        estimated_cost = transaction_amount + gas_cost_eth
+                except Exception:
+                    gas_cost_eth = (base_gas * 20e9) / 1e18
+                    estimated_cost = transaction_amount + gas_cost_eth
+            
+            decision_id = f"dec_{int(time.time())}_{hashlib.md5(request.request.encode()).hexdigest()[:8]}"
+            
+            agent_decision = {
+                'decision_id': decision_id,
+                'intent': f"Process: {request.request[:50]}",
+                'action_type': "transaction" if is_transaction else "query",
+                'parameters': {
+                    'query': request.request,
+                    'risk_score': risk_score,
+                    'planner_analysis': planner_result[:500],
+                    'estimated_gas_cost': gas_cost_eth,
+                    'transaction_amount': transaction_amount
+                },
+                'reasoning': planner_response.reasoning,
+                'risk_score': risk_score,
+                'estimated_cost': estimated_cost,
+                'requires_approval': risk_score > 0.6
+            }
+            
+            # Check if approval needed
+            if agent_decision['requires_approval']:
+                yield f"data: {json.dumps({'type': 'status', 'message': 'High-risk transaction detected...'})}\n\n"
+                
+                # Stream the planner result in chunks
+                for i in range(0, len(planner_result), 50):
+                    chunk = planner_result[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)  # Simulate streaming
+                
+                final_message = f"\n\n**Summary:**\n- Decision ID: {decision_id}\n- Risk Level: {int(risk_score * 100)}%\n- Estimated Cost: {estimated_cost:.6f} ETH\n\n⚠️ This transaction requires manual approval."
+                
+                for i in range(0, len(final_message), 50):
+                    chunk = final_message[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)
+                
+                done_response = {
+                    'type': 'done',
+                    'success': True,
+                    'decision': serialize_for_json(agent_decision),
+                    'execution_time': time.time() - start_time
+                }
+                yield f"data: {json.dumps(done_response)}\n\n"
+                return
+            
+            # Low-risk - execute if transaction
+            if is_transaction:
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Executing transaction...'})}\n\n"
+                
+                executor = orchestrator.executor
+                executor_response = await executor.process(
+                    decision_context,
+                    additional_input=f"Execute this transaction based on planner's analysis: {planner_result[:200]}"
+                )
+                
+                if not executor_response.success:
+                    error_response = {
+                        'type': 'done',
+                        'success': False,
+                        'message': f"Transaction execution failed: {executor_response.error}",
+                        'decision': agent_decision,
+                        'execution_time': time.time() - start_time
+                    }
+                    yield f"data: {json.dumps(error_response)}\n\n"
+                    return
+                
+                executor_result = executor_response.result.get('response', '')
+                
+                # Update decision
+                agent_decision['parameters']['execution_result'] = {
+                    'raw_response': executor_result,
+                    'status': 'executed',
+                    'agent_response': executor_response.result
+                }
+                
+                # Stream the response
+                header = "**Transaction Executed Successfully**\n\n"
+                for i in range(0, len(header), 20):
+                    chunk = header[i:i+20]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.02)
+                
+                for i in range(0, len(executor_result), 50):
+                    chunk = executor_result[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)
+                
+                summary = f"\n\n**Summary:**\n- Transaction submitted to blockchain\n- Decision ID: {decision_id}\n- Risk Level: {int(risk_score * 100)}%\n- Estimated Total Cost: {estimated_cost:.6f} ETH\n\nThe transaction has been processed by the Executor agent and submitted to the blockchain."
+                
+                for i in range(0, len(summary), 50):
+                    chunk = summary[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)
+                
+            else:
+                # Query - stream planner result
+                header = "**Request Processed**\n\n"
+                for i in range(0, len(header), 20):
+                    chunk = header[i:i+20]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.02)
+                
+                for i in range(0, len(planner_result), 50):
+                    chunk = planner_result[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)
+                
+                summary = f"\n\n**Summary:**\n- Request Type: Informational Query\n- Decision ID: {decision_id}\n- Processing Time: {time.time() - start_time:.2f}s"
+                
+                for i in range(0, len(summary), 50):
+                    chunk = summary[i:i+50]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.03)
+            
+            # Store in memory
+            try:
+                await memory_service.store(
+                    wallet_address=decision_context.wallet_address or "default",
+                    agent_type="planner",
+                    request=request.request,
+                    response=agent_decision,
+                    reasoning=agent_decision['reasoning'],
+                    timestamp=datetime.now()
+                )
+            except Exception as mem_error:
+                logger.warning(f"Failed to store in memory: {mem_error}")
+            
+            # Send final done event
+            done_response = {
+                'type': 'done',
+                'success': True,
+                'decision': serialize_for_json(agent_decision),
+                'execution_time': time.time() - start_time
+            }
+            yield f"data: {json.dumps(done_response)}\n\n"
+            
+        except Exception as e:
+            logger.error(f"Error in streaming: {e}", exc_info=True)
+            error_response = {
+                'type': 'done',
+                'success': False,
+                'message': f"Error processing request: {str(e)}",
+                'execution_time': time.time() - start_time
+            }
+            yield f"data: {json.dumps(error_response)}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.get("/decision/{decision_id}", response_model=AgentDecision, summary="Get decision details (FR-002)")
