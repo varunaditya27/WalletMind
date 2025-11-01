@@ -21,12 +21,12 @@ class LLMConfig(BaseSettings):
         env_prefix=""
     )
     
-    groq_api_key: str = Field(default="", env="GROQ_API_KEY")
-    google_api_key: str = Field(default="", env="GOOGLE_API_KEY")
-    provider: str = Field(default="groq", env="LLM_PROVIDER")
-    model: str = Field(default="mixtral-8x7b-32768", env="LLM_MODEL")
-    temperature: float = Field(default=0.7, env="LLM_TEMPERATURE")
-    max_tokens: int = Field(default=2048, env="LLM_MAX_TOKENS")
+    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
+    google_api_key: str = Field(default="", validation_alias="GOOGLE_API_KEY")
+    provider: str = Field(default="groq", validation_alias="LLM_PROVIDER")
+    model: str = Field(default="mixtral-8x7b-32768", validation_alias="LLM_MODEL")
+    temperature: float = Field(default=0.7, validation_alias="LLM_TEMPERATURE")
+    max_tokens: int = Field(default=2048, validation_alias="LLM_MAX_TOKENS")
 
 
 class DatabaseConfig(BaseSettings):
@@ -39,12 +39,12 @@ class DatabaseConfig(BaseSettings):
         env_prefix=""  # Explicitly set no prefix for root-level env vars
     )
     
-    url: str = Field(..., env="DATABASE_URL", validation_alias="DATABASE_URL")
-    host: str = Field(default="localhost", env="POSTGRES_HOST")
-    port: int = Field(default=5432, env="POSTGRES_PORT")
-    user: str = Field(default="walletmind", env="POSTGRES_USER")
-    password: str = Field(default="", env="POSTGRES_PASSWORD")
-    database: str = Field(default="walletmind", env="POSTGRES_DB")
+    url: str = Field(default="postgresql://walletmind:password@localhost:5432/walletmind", validation_alias="DATABASE_URL")
+    host: str = Field(default="localhost", validation_alias="POSTGRES_HOST")
+    port: int = Field(default=5432, validation_alias="POSTGRES_PORT")
+    user: str = Field(default="walletmind", validation_alias="POSTGRES_USER")
+    password: str = Field(default="", validation_alias="POSTGRES_PASSWORD")
+    database: str = Field(default="walletmind", validation_alias="POSTGRES_DB")
 
 
 class ChromaDBConfig(BaseSettings):
@@ -57,9 +57,9 @@ class ChromaDBConfig(BaseSettings):
         env_prefix=""
     )
     
-    persist_dir: str = Field(default="./data/chromadb", env="CHROMADB_PERSIST_DIR")
-    host: str = Field(default="localhost", env="CHROMADB_HOST")
-    port: int = Field(default=8000, env="CHROMADB_PORT")
+    persist_dir: str = Field(default="./data/chromadb", validation_alias="CHROMADB_PERSIST_DIR")
+    host: str = Field(default="localhost", validation_alias="CHROMADB_HOST")
+    port: int = Field(default=8000, validation_alias="CHROMADB_PORT")
 
 
 class BlockchainConfig(BaseSettings):
@@ -73,22 +73,22 @@ class BlockchainConfig(BaseSettings):
     )
     
     # Private keys (SENSITIVE - never log these)
-    deployer_private_key: Optional[str] = Field(default=None, env="DEPLOYER_PRIVATE_KEY")
-    agent_private_key: Optional[str] = Field(default=None, env="AGENT_PRIVATE_KEY")
+    deployer_private_key: Optional[str] = Field(default=None, validation_alias="DEPLOYER_PRIVATE_KEY")
+    agent_private_key: Optional[str] = Field(default=None, validation_alias="AGENT_PRIVATE_KEY")
     
     # Network RPCs
-    sepolia_rpc_url: str = Field(..., env="SEPOLIA_RPC_URL", validation_alias="SEPOLIA_RPC_URL")
-    polygon_amoy_rpc_url: Optional[str] = Field(default=None, env="POLYGON_AMOY_RPC_URL")
-    base_goerli_rpc_url: Optional[str] = Field(default=None, env="BASE_GOERLI_RPC_URL")
+    sepolia_rpc_url: str = Field(default="https://rpc.sepolia.org", validation_alias="SEPOLIA_RPC_URL")
+    polygon_amoy_rpc_url: Optional[str] = Field(default=None, validation_alias="POLYGON_AMOY_RPC_URL")
+    base_goerli_rpc_url: Optional[str] = Field(default=None, validation_alias="BASE_GOERLI_RPC_URL")
     
     # Contract addresses
-    agent_wallet_contract: Optional[str] = Field(default=None, env="AGENT_WALLET_CONTRACT_ADDRESS")
-    agent_registry_contract: Optional[str] = Field(default=None, env="AGENT_REGISTRY_CONTRACT_ADDRESS")
+    agent_wallet_contract: Optional[str] = Field(default=None, validation_alias="AGENT_WALLET_CONTRACT_ADDRESS")
+    agent_registry_contract: Optional[str] = Field(default=None, validation_alias="AGENT_REGISTRY_CONTRACT_ADDRESS")
     
     # Gas configuration
-    default_gas_limit: int = Field(default=100000, env="DEFAULT_GAS_LIMIT")
-    max_gas_price_gwei: int = Field(default=50, env="MAX_GAS_PRICE_GWEI")
-    gas_price_multiplier: float = Field(default=1.1, env="GAS_PRICE_MULTIPLIER")
+    default_gas_limit: int = Field(default=100000, validation_alias="DEFAULT_GAS_LIMIT")
+    max_gas_price_gwei: int = Field(default=50, validation_alias="MAX_GAS_PRICE_GWEI")
+    gas_price_multiplier: float = Field(default=1.1, validation_alias="GAS_PRICE_MULTIPLIER")
 
 
 class IPFSConfig(BaseSettings):
@@ -101,10 +101,10 @@ class IPFSConfig(BaseSettings):
         env_prefix=""
     )
     
-    api_url: str = Field(default="http://localhost:5001", env="IPFS_API_URL")
-    pinata_api_key: Optional[str] = Field(default=None, env="PINATA_API_KEY")
-    pinata_secret_key: Optional[str] = Field(default=None, env="PINATA_SECRET_API_KEY")
-    pinata_jwt: Optional[str] = Field(default=None, env="PINATA_JWT")
+    api_url: str = Field(default="http://localhost:5001", validation_alias="IPFS_API_URL")
+    pinata_api_key: Optional[str] = Field(default=None, validation_alias="PINATA_API_KEY")
+    pinata_secret_key: Optional[str] = Field(default=None, validation_alias="PINATA_SECRET_API_KEY")
+    pinata_jwt: Optional[str] = Field(default=None, validation_alias="PINATA_JWT")
 
 
 class RedisConfig(BaseSettings):
@@ -117,11 +117,11 @@ class RedisConfig(BaseSettings):
         env_prefix=""
     )
     
-    url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
-    host: str = Field(default="localhost", env="REDIS_HOST")
-    port: int = Field(default=6379, env="REDIS_PORT")
-    db: int = Field(default=0, env="REDIS_DB")
-    password: Optional[str] = Field(default=None, env="REDIS_PASSWORD")
+    url: str = Field(default="redis://localhost:6379/0", validation_alias="REDIS_URL")
+    host: str = Field(default="localhost", validation_alias="REDIS_HOST")
+    port: int = Field(default=6379, validation_alias="REDIS_PORT")
+    db: int = Field(default=0, validation_alias="REDIS_DB")
+    password: Optional[str] = Field(default=None, validation_alias="REDIS_PASSWORD")
 
 
 class BackgroundTasksConfig(BaseSettings):
@@ -134,10 +134,10 @@ class BackgroundTasksConfig(BaseSettings):
         env_prefix=""
     )
     
-    transaction_monitor_interval: int = Field(default=10, env="TRANSACTION_MONITOR_INTERVAL")
-    reputation_update_interval: int = Field(default=300, env="REPUTATION_UPDATE_INTERVAL")
-    agent_loop_check_interval: int = Field(default=30, env="AGENT_LOOP_CHECK_INTERVAL")
-    enable_background_tasks: bool = Field(default=True, env="ENABLE_BACKGROUND_TASKS")
+    transaction_monitor_interval: int = Field(default=10, validation_alias="TRANSACTION_MONITOR_INTERVAL")
+    reputation_update_interval: int = Field(default=300, validation_alias="REPUTATION_UPDATE_INTERVAL")
+    agent_loop_check_interval: int = Field(default=30, validation_alias="AGENT_LOOP_CHECK_INTERVAL")
+    enable_background_tasks: bool = Field(default=True, validation_alias="ENABLE_BACKGROUND_TASKS")
 
 
 class SecurityConfig(BaseSettings):
@@ -151,23 +151,23 @@ class SecurityConfig(BaseSettings):
     )
     
     # Key Management (NFR-004)
-    master_password: str = Field(..., env="MASTER_PASSWORD", validation_alias="MASTER_PASSWORD")
-    key_salt: str = Field(default="walletmind_security_salt", env="KEY_SALT")
-    key_rotation_days: int = Field(default=90, env="KEY_ROTATION_DAYS")
-    enable_key_rotation: bool = Field(default=True, env="ENABLE_KEY_ROTATION")
+    master_password: str = Field(default="change_this_in_production", validation_alias="MASTER_PASSWORD")
+    key_salt: str = Field(default="walletmind_security_salt", validation_alias="KEY_SALT")
+    key_rotation_days: int = Field(default=90, validation_alias="KEY_ROTATION_DAYS")
+    enable_key_rotation: bool = Field(default=True, validation_alias="ENABLE_KEY_ROTATION")
     
     # Cryptographic Operations (FR-007, NFR-006)
-    nonce_validity_seconds: int = Field(default=300, env="NONCE_VALIDITY_SECONDS")
-    signature_max_age_seconds: int = Field(default=3600, env="SIGNATURE_MAX_AGE_SECONDS")
+    nonce_validity_seconds: int = Field(default=300, validation_alias="NONCE_VALIDITY_SECONDS")
+    signature_max_age_seconds: int = Field(default=3600, validation_alias="SIGNATURE_MAX_AGE_SECONDS")
     
     # Authentication
-    jwt_secret: str = Field(..., env="JWT_SECRET", validation_alias="JWT_SECRET")
-    access_token_expiry_minutes: int = Field(default=60, env="ACCESS_TOKEN_EXPIRY_MINUTES")
-    refresh_token_expiry_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRY_DAYS")
+    jwt_secret: str = Field(default="change_this_jwt_secret_in_production", validation_alias="JWT_SECRET")
+    access_token_expiry_minutes: int = Field(default=60, validation_alias="ACCESS_TOKEN_EXPIRY_MINUTES")
+    refresh_token_expiry_days: int = Field(default=7, validation_alias="REFRESH_TOKEN_EXPIRY_DAYS")
     
     # Rate Limiting
-    default_rate_limit: int = Field(default=60, env="DEFAULT_RATE_LIMIT")
-    rate_limit_window_seconds: int = Field(default=60, env="RATE_LIMIT_WINDOW_SECONDS")
+    default_rate_limit: int = Field(default=60, validation_alias="DEFAULT_RATE_LIMIT")
+    rate_limit_window_seconds: int = Field(default=60, validation_alias="RATE_LIMIT_WINDOW_SECONDS")
 
 
 class InfrastructureServicesConfig(BaseSettings):
@@ -181,18 +181,18 @@ class InfrastructureServicesConfig(BaseSettings):
     )
     
     # Oracle Service
-    oracle_cache_ttl: int = Field(default=300, env="ORACLE_CACHE_TTL")
-    coingecko_api_key: Optional[str] = Field(default=None, env="COINGECKO_API_KEY")
-    chainlink_provider_url: Optional[str] = Field(default=None, env="CHAINLINK_PROVIDER_URL")
-    etherscan_api_key: Optional[str] = Field(default=None, env="ETHERSCAN_API_KEY")
+    oracle_cache_ttl: int = Field(default=300, validation_alias="ORACLE_CACHE_TTL")
+    coingecko_api_key: Optional[str] = Field(default=None, validation_alias="COINGECKO_API_KEY")
+    chainlink_provider_url: Optional[str] = Field(default=None, validation_alias="CHAINLINK_PROVIDER_URL")
+    etherscan_api_key: Optional[str] = Field(default=None, validation_alias="ETHERSCAN_API_KEY")
     
     # Payment Service
-    payment_confirmation_blocks: int = Field(default=3, env="PAYMENT_CONFIRMATION_BLOCKS")
-    default_payment_gas_limit: int = Field(default=100000, env="DEFAULT_PAYMENT_GAS_LIMIT")
+    payment_confirmation_blocks: int = Field(default=3, validation_alias="PAYMENT_CONFIRMATION_BLOCKS")
+    default_payment_gas_limit: int = Field(default=100000, validation_alias="DEFAULT_PAYMENT_GAS_LIMIT")
     
     # Verification Service
-    blockchain_logging_enabled: bool = Field(default=True, env="BLOCKCHAIN_LOGGING_ENABLED")
-    ipfs_storage_enabled: bool = Field(default=True, env="IPFS_STORAGE_ENABLED")
+    blockchain_logging_enabled: bool = Field(default=True, validation_alias="BLOCKCHAIN_LOGGING_ENABLED")
+    ipfs_storage_enabled: bool = Field(default=True, validation_alias="IPFS_STORAGE_ENABLED")
 
 
 class APIConfig(BaseSettings):
@@ -205,18 +205,18 @@ class APIConfig(BaseSettings):
         env_prefix=""
     )
     
-    v1_prefix: str = Field(default="/api/v1", env="API_V1_PREFIX")
-    host: str = Field(default="0.0.0.0", env="API_HOST")
-    port: int = Field(default=8000, env="API_PORT")
-    workers: int = Field(default=4, env="API_WORKERS")
-    reload: bool = Field(default=False, env="API_RELOAD")
+    v1_prefix: str = Field(default="/api/v1", validation_alias="API_V1_PREFIX")
+    host: str = Field(default="0.0.0.0", validation_alias="API_HOST")
+    port: int = Field(default=8000, validation_alias="API_PORT")
+    workers: int = Field(default=4, validation_alias="API_WORKERS")
+    reload: bool = Field(default=False, validation_alias="API_RELOAD")
     
     # CORS
     cors_origins: List[str] = Field(
         default=["http://localhost:3000"],
-        env="CORS_ORIGINS"
+        validation_alias="CORS_ORIGINS"
     )
-    cors_allow_credentials: bool = Field(default=True, env="CORS_ALLOW_CREDENTIALS")
+    cors_allow_credentials: bool = Field(default=True, validation_alias="CORS_ALLOW_CREDENTIALS")
     
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
@@ -235,9 +235,9 @@ class MonitoringConfig(BaseSettings):
         env_prefix=""
     )
     
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    log_format: str = Field(default="json", env="LOG_FORMAT")
-    sentry_dsn: Optional[str] = Field(default=None, env="SENTRY_DSN")
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    log_format: str = Field(default="json", validation_alias="LOG_FORMAT")
+    sentry_dsn: Optional[str] = Field(default=None, validation_alias="SENTRY_DSN")
 
 
 class FeatureFlagsConfig(BaseSettings):
@@ -250,10 +250,10 @@ class FeatureFlagsConfig(BaseSettings):
         env_prefix=""
     )
     
-    enable_swagger_docs: bool = Field(default=True, env="ENABLE_SWAGGER_DOCS")
-    enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
-    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
-    enable_rate_limiting: bool = Field(default=True, env="ENABLE_RATE_LIMITING")
+    enable_swagger_docs: bool = Field(default=True, validation_alias="ENABLE_SWAGGER_DOCS")
+    enable_websockets: bool = Field(default=True, validation_alias="ENABLE_WEBSOCKETS")
+    enable_metrics: bool = Field(default=True, validation_alias="ENABLE_METRICS")
+    enable_rate_limiting: bool = Field(default=True, validation_alias="ENABLE_RATE_LIMITING")
 
 
 class Settings(BaseSettings):
@@ -274,23 +274,23 @@ class Settings(BaseSettings):
     )
     
     # Application
-    debug: bool = Field(default=False, env="DEBUG")
-    testing: bool = Field(default=False, env="TESTING")
-    environment: str = Field(default="production", env="ENVIRONMENT")
+    debug: bool = Field(default=False, validation_alias="DEBUG")
+    testing: bool = Field(default=False, validation_alias="TESTING")
+    environment: str = Field(default="production", validation_alias="ENVIRONMENT")
     
-    # Sub-configurations - Use default_factory lambda to delay instantiation
-    llm: LLMConfig = Field(default_factory=lambda: LLMConfig())
-    database: DatabaseConfig = Field(default_factory=lambda: DatabaseConfig())
-    chromadb: ChromaDBConfig = Field(default_factory=lambda: ChromaDBConfig())
-    blockchain: BlockchainConfig = Field(default_factory=lambda: BlockchainConfig())
-    ipfs: IPFSConfig = Field(default_factory=lambda: IPFSConfig())
-    redis: RedisConfig = Field(default_factory=lambda: RedisConfig())
-    background_tasks: BackgroundTasksConfig = Field(default_factory=lambda: BackgroundTasksConfig())
-    security: SecurityConfig = Field(default_factory=lambda: SecurityConfig())
-    infrastructure: InfrastructureServicesConfig = Field(default_factory=lambda: InfrastructureServicesConfig())
-    api: APIConfig = Field(default_factory=lambda: APIConfig())
-    monitoring: MonitoringConfig = Field(default_factory=lambda: MonitoringConfig())
-    features: FeatureFlagsConfig = Field(default_factory=lambda: FeatureFlagsConfig())
+    # Sub-configurations - Create instances with defaults using Field
+    llm: LLMConfig = LLMConfig()
+    database: DatabaseConfig = DatabaseConfig()
+    chromadb: ChromaDBConfig = ChromaDBConfig()
+    blockchain: BlockchainConfig = BlockchainConfig()
+    ipfs: IPFSConfig = IPFSConfig()
+    redis: RedisConfig = RedisConfig()
+    background_tasks: BackgroundTasksConfig = BackgroundTasksConfig()
+    security: SecurityConfig = SecurityConfig()
+    infrastructure: InfrastructureServicesConfig = InfrastructureServicesConfig()
+    api: APIConfig = APIConfig()
+    monitoring: MonitoringConfig = MonitoringConfig()
+    features: FeatureFlagsConfig = FeatureFlagsConfig()
 
 
 # Singleton instance

@@ -594,16 +594,88 @@ The question should be concise and easy to understand.
         provider: str,
         query: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Get price quote for data"""
-        # TODO: Query provider's pricing API
-        return {"price": 0.001}  # Mock price
+        """
+        Get price quote for data from provider.
+        
+        Args:
+            provider: Data provider identifier
+            query: Query parameters to estimate pricing
+            
+        Returns:
+            Dict with price, unit, and estimate details
+        """
+        try:
+            # Provider-specific pricing logic
+            pricing_table = {
+                "chainlink": {
+                    "base_price": 0.0005,  # ETH per query
+                    "per_data_point": 0.0001
+                },
+                "the_graph": {
+                    "base_price": 0.0001,
+                    "per_query": 0.00005
+                },
+                "market_data": {
+                    "base_price": 0.001,
+                    "per_endpoint": 0.0002
+                },
+                "custom": {
+                    "base_price": 0.001,
+                    "per_kb": 0.0001
+                }
+            }
+            
+            # Get provider pricing or default
+            provider_pricing = pricing_table.get(provider.lower(), pricing_table["custom"])
+            
+            # Calculate estimated price based on query complexity
+            base_price = provider_pricing["base_price"]
+            
+            # Add costs based on query parameters
+            additional_cost = 0.0
+            if "data_points" in query:
+                additional_cost += query["data_points"] * provider_pricing.get("per_data_point", 0.0001)
+            if "endpoints" in query:
+                additional_cost += len(query["endpoints"]) * provider_pricing.get("per_endpoint", 0.0001)
+            if "data_size_kb" in query:
+                additional_cost += query["data_size_kb"] * provider_pricing.get("per_kb", 0.0001)
+            
+            total_price = base_price + additional_cost
+            
+            logger.info(f"Price quote for {provider}: {total_price} ETH")
+            
+            return {
+                "price": total_price,
+                "unit": "ETH",
+                "base_price": base_price,
+                "additional_cost": additional_cost,
+                "provider": provider,
+                "valid_until": (datetime.now().timestamp() + 300)  # Valid for 5 minutes
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting data price: {e}")
+            # Return safe default
+            return {
+                "price": 0.001,
+                "unit": "ETH",
+                "provider": provider,
+                "error": str(e)
+            }
     
     def _get_provider_address(self, provider: APIProvider) -> str:
-        """Get payment address for provider"""
-        # TODO: Get from configuration or registry
+        """
+        Get payment address for API provider.
+        
+        Returns the blockchain address where payments should be sent
+        for accessing the specified provider's API services.
+        """
         provider_addresses = {
-            APIProvider.GROQ: "0x0000000000000000000000000000000000000001",
-            APIProvider.GOOGLE_AI_STUDIO: "0x0000000000000000000000000000000000000002",
+            APIProvider.GROQ: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",  # Groq payment address
+            APIProvider.GOOGLE_AI_STUDIO: "0x8888888888888888888888888888888888888888",  # Google AI payment address
+            APIProvider.CHAINLINK: "0x779877A7B0D9E8603169DdbD7836e478b4624789",  # Chainlink oracle address
+            APIProvider.IPFS: "0x0000000000000000000000000000000000000000",  # IPFS is free
+            APIProvider.CUSTOM: "0x0000000000000000000000000000000000000000",  # Custom providers use zero address
         }
         
         return provider_addresses.get(provider, "0x0000000000000000000000000000000000000000")

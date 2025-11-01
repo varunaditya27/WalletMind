@@ -28,6 +28,7 @@ from app.agents.executor import ExecutorAgent
 from app.agents.evaluator import EvaluatorAgent
 from app.agents.communicator import CommunicatorAgent
 from app.agents.base import AgentConfig, DecisionContext
+from app.agents.tools import get_planner_tools, get_executor_tools, get_evaluator_tools, get_communicator_tools
 from app.memory.vector_store import MemoryService
 from app.database.service import DatabaseService
 from app.blockchain import WalletManager, Web3Provider, NetworkType
@@ -147,14 +148,16 @@ def get_orchestrator() -> OrchestratorAgent:
             payment_service = get_payment_service()
             websocket_manager = get_websocket_manager()
             
-            # TODO: Initialize tools for each agent type
-            # For now, use empty tool lists - tools should be added based on agent requirements
-            tools: List[BaseTool] = []
+            # Initialize tools for each agent type
+            planner_tools = get_planner_tools(blockchain_service)
+            executor_tools = get_executor_tools(blockchain_service)
+            evaluator_tools = get_evaluator_tools(blockchain_service)
+            communicator_tools = get_communicator_tools(payment_service)
             
             # Create sub-agents with proper initialization
             planner = PlannerAgent(
                 llm=llm,
-                tools=tools,
+                tools=planner_tools,
                 config=AgentConfig(
                     agent_type="planner",
                     temperature=0.3,
@@ -165,7 +168,7 @@ def get_orchestrator() -> OrchestratorAgent:
             
             executor = ExecutorAgent(
                 llm=llm,
-                tools=tools,
+                tools=executor_tools,
                 config=AgentConfig(
                     agent_type="executor",
                     temperature=0.1,
@@ -177,7 +180,7 @@ def get_orchestrator() -> OrchestratorAgent:
             
             evaluator = EvaluatorAgent(
                 llm=llm,
-                tools=tools,
+                tools=evaluator_tools,
                 config=AgentConfig(
                     agent_type="evaluator",
                     temperature=0.2,
@@ -189,7 +192,7 @@ def get_orchestrator() -> OrchestratorAgent:
             
             communicator = CommunicatorAgent(
                 llm=llm,
-                tools=tools,
+                tools=communicator_tools,
                 config=AgentConfig(
                     agent_type="communicator",
                     temperature=0.5,
