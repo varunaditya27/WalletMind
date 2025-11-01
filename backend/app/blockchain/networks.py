@@ -7,6 +7,7 @@ Provides NetworkConfig dataclass and pre-configured network settings.
 from dataclasses import dataclass
 from typing import Dict, Optional
 from enum import Enum
+import os
 
 
 class NetworkType(str, Enum):
@@ -49,7 +50,8 @@ class NetworkConfig:
 SEPOLIA_CONFIG = NetworkConfig(
     name="Sepolia Testnet",
     chain_id=11155111,
-    rpc_url="https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY",  # Override from env
+    # Use public RPC endpoints if env var not set
+    rpc_url=os.getenv("SEPOLIA_RPC_URL", "https://rpc.sepolia.org"),
     explorer_url="https://sepolia.etherscan.io",
     currency="ETH",
     is_testnet=True,
@@ -63,7 +65,7 @@ SEPOLIA_CONFIG = NetworkConfig(
 POLYGON_AMOY_CONFIG = NetworkConfig(
     name="Polygon Amoy Testnet",
     chain_id=80002,
-    rpc_url="https://rpc-amoy.polygon.technology",  # Override from env
+    rpc_url=os.getenv("POLYGON_AMOY_RPC_URL", "https://rpc-amoy.polygon.technology"),
     explorer_url="https://amoy.polygonscan.com",
     currency="MATIC",
     is_testnet=True,
@@ -77,7 +79,7 @@ POLYGON_AMOY_CONFIG = NetworkConfig(
 BASE_GOERLI_CONFIG = NetworkConfig(
     name="Base Goerli Testnet",
     chain_id=84531,
-    rpc_url="https://goerli.base.org",  # Override from env
+    rpc_url=os.getenv("BASE_GOERLI_RPC_URL", "https://goerli.base.org"),
     explorer_url="https://goerli.basescan.org",
     currency="ETH",
     is_testnet=True,

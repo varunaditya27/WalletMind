@@ -11,8 +11,8 @@ Persistent memory and context management for AI agents:
 from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 import logging
 from datetime import datetime

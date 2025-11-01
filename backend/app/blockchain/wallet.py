@@ -10,7 +10,7 @@ from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from web3 import Web3
 
-from ..security.key_manager import KeyManager, KeyDerivationPath
+from ..security.key_manager import KeyManager
 from .provider import Web3Provider
 from .networks import NetworkType
 
@@ -89,8 +89,8 @@ class WalletManager:
         # Store mnemonic securely
         key_manager.store_mnemonic(wallet_id, mnemonic)
         
-        # Derive Ethereum key (m/44'/60'/0'/0/{account_index})
-        derivation_path = KeyDerivationPath.ethereum(account_index=account_index)
+        # Derive Ethereum key using BIP44 path (m/44'/60'/0'/0/{account_index})
+        derivation_path = f"m/44'/60'/0'/0/{account_index}"
         private_key = key_manager.derive_key_from_mnemonic(
             mnemonic,
             derivation_path,
@@ -147,8 +147,8 @@ class WalletManager:
         # Fallback to mnemonic derivation
         mnemonic = key_manager.retrieve_mnemonic(wallet_id)
         
-        # Derive key
-        derivation_path = KeyDerivationPath.ethereum(account_index=account_index)
+        # Derive key using BIP44 path (m/44'/60'/0'/0/{account_index})
+        derivation_path = f"m/44'/60'/0'/0/{account_index}"
         private_key = key_manager.derive_key_from_mnemonic(
             mnemonic,
             derivation_path,
