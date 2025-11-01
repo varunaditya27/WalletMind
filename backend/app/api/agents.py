@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import hashlib
 import json
+import os
 
 from app.models.agent import (
     AgentRequest,
@@ -26,10 +27,24 @@ from app.agents.planner import PlannerAgent
 from app.agents.executor import ExecutorAgent
 from app.agents.evaluator import EvaluatorAgent
 from app.agents.communicator import CommunicatorAgent
+from app.agents.base import AgentConfig, DecisionContext
 from app.memory.vector_store import MemoryService
 from app.database.service import DatabaseService
+from app.blockchain import WalletManager, Web3Provider, NetworkType
+from app.config import get_settings
+from app.services.payment_service import PaymentService
+from app.api.websocket import ConnectionManager
+
+# LangChain imports for LLM initialization
+from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
+
+# Load configuration
+settings = get_settings()
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -37,6 +52,10 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 _orchestrator: Optional[OrchestratorAgent] = None
 _memory_service: Optional[MemoryService] = None
 _db_service: Optional[DatabaseService] = None
+_blockchain_service: Optional[WalletManager] = None
+_llm: Optional[BaseChatModel] = None
+_payment_service: Optional[PaymentService] = None
+_websocket_manager: Optional[ConnectionManager] = None
 _agent_registry: Dict[str, Any] = {}
 _agent_metrics: Dict[str, Dict[str, Any]] = {
     "planner": {"requests": 0, "successes": 0, "start_time": time.time()},
@@ -46,11 +65,157 @@ _agent_metrics: Dict[str, Dict[str, Any]] = {
 }
 
 
+def get_llm() -> BaseChatModel:
+    """Get or create LLM instance based on configuration"""
+    global _llm
+    if _llm is None:
+        llm_config = settings.llm
+        
+        if llm_config.provider.lower() == "groq":
+            if not llm_config.groq_api_key:
+                raise ValueError("GROQ_API_KEY not set in environment")
+            _llm = ChatGroq(
+                groq_api_key=llm_config.groq_api_key,
+                model_name=llm_config.model,
+                temperature=llm_config.temperature,
+                max_tokens=llm_config.max_tokens
+            )
+            logger.info(f"Initialized Groq LLM with model: {llm_config.model}")
+        elif llm_config.provider.lower() == "google":
+            if not llm_config.google_api_key:
+                raise ValueError("GOOGLE_API_KEY not set in environment")
+            _llm = ChatGoogleGenerativeAI(
+                google_api_key=llm_config.google_api_key,
+                model=llm_config.model,
+                temperature=llm_config.temperature,
+                max_tokens=llm_config.max_tokens
+            )
+            logger.info(f"Initialized Google LLM with model: {llm_config.model}")
+        else:
+            raise ValueError(f"Unsupported LLM provider: {llm_config.provider}")
+    
+    if _llm is None:
+        raise RuntimeError("Failed to initialize LLM")
+    
+    return _llm
+
+
+def get_blockchain_service() -> Optional[WalletManager]:
+    """Get or create blockchain service instance"""
+    global _blockchain_service
+    if _blockchain_service is None:
+        try:
+            # Initialize Web3 provider for Sepolia (default testnet)
+            provider = Web3Provider()
+            provider.connect(NetworkType.SEPOLIA)
+            _blockchain_service = WalletManager(provider)
+            logger.info("Initialized blockchain service with Sepolia testnet")
+        except Exception as e:
+            logger.error(f"Failed to initialize blockchain service: {e}")
+            # Return None for development - some features may not work without blockchain
+            _blockchain_service = None
+    return _blockchain_service
+
+
+def get_payment_service() -> PaymentService:
+    """Get or create payment service instance"""
+    global _payment_service
+    if _payment_service is None:
+        _payment_service = PaymentService()
+        logger.info("Initialized payment service")
+    return _payment_service
+
+
+def get_websocket_manager() -> ConnectionManager:
+    """Get or create websocket manager instance"""
+    global _websocket_manager
+    if _websocket_manager is None:
+        _websocket_manager = ConnectionManager()
+        logger.info("Initialized WebSocket manager")
+    return _websocket_manager
+
+
 def get_orchestrator() -> OrchestratorAgent:
     """Get or create orchestrator instance"""
     global _orchestrator
     if _orchestrator is None:
-        _orchestrator = OrchestratorAgent()
+        try:
+            # Get shared services
+            llm = get_llm()
+            memory_service = get_memory_service()
+            blockchain_service = get_blockchain_service()
+            payment_service = get_payment_service()
+            websocket_manager = get_websocket_manager()
+            
+            # TODO: Initialize tools for each agent type
+            # For now, use empty tool lists - tools should be added based on agent requirements
+            tools: List[BaseTool] = []
+            
+            # Create sub-agents with proper initialization
+            planner = PlannerAgent(
+                llm=llm,
+                tools=tools,
+                config=AgentConfig(
+                    agent_type="planner",
+                    temperature=0.3,
+                    max_iterations=8
+                ),
+                memory_service=memory_service
+            )
+            
+            executor = ExecutorAgent(
+                llm=llm,
+                tools=tools,
+                config=AgentConfig(
+                    agent_type="executor",
+                    temperature=0.1,
+                    max_iterations=5
+                ),
+                memory_service=memory_service,
+                blockchain_service=blockchain_service
+            )
+            
+            evaluator = EvaluatorAgent(
+                llm=llm,
+                tools=tools,
+                config=AgentConfig(
+                    agent_type="evaluator",
+                    temperature=0.2,
+                    max_iterations=5
+                ),
+                memory_service=memory_service,
+                blockchain_service=blockchain_service
+            )
+            
+            communicator = CommunicatorAgent(
+                llm=llm,
+                tools=tools,
+                config=AgentConfig(
+                    agent_type="communicator",
+                    temperature=0.5,
+                    max_iterations=8
+                ),
+                memory_service=memory_service,
+                payment_service=payment_service
+            )
+            
+            # Create orchestrator with all sub-agents
+            _orchestrator = OrchestratorAgent(
+                planner=planner,
+                executor=executor,
+                evaluator=evaluator,
+                communicator=communicator,
+                blockchain_service=blockchain_service,
+                memory_service=memory_service,
+                websocket_manager=websocket_manager
+            )
+            
+            logger.info("Initialized OrchestratorAgent with all sub-agents")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize orchestrator: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to initialize agent system: {str(e)}")
+    
     return _orchestrator
 
 
@@ -99,9 +264,8 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
         # Process request through orchestrator
         logger.info(f"Processing agent request: {request.request[:100]}")
         
-        # Step 1: Check request clarity (handle ambiguous requests)
-        from app.agents.communicator import CommunicatorAgent
-        communicator = CommunicatorAgent()
+        # Step 1: Check request clarity using the orchestrator's communicator
+        communicator = orchestrator.communicator
         
         is_clear, missing_info = await communicator.check_request_clarity(request.request)
         
@@ -136,18 +300,19 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
                 agent_status=AgentStatus.WAITING
             )
         
-        # Step 2: Create planner agent for initial decision
-        planner = PlannerAgent()
+        # Step 2: Use planner agent from orchestrator for initial decision
+        planner = orchestrator.planner
         
         # Prepare context from request
-        context_data = {
-            "wallet_address": getattr(request, "wallet_address", "default"),
-            "user_request": request.request,
-            **(request.context or {})
-        }
+        decision_context = DecisionContext(
+            user_id=request.user_id or "default",
+            wallet_address=getattr(request, "wallet_address", "default"),
+            request=request.request,
+            metadata=request.context or {}
+        )
         
         # Generate decision
-        decision_result = await planner.evaluate_risk(context_data)
+        decision_result = await planner.evaluate_risk(decision_context)
         
         # Create decision hash for tracking
         decision_id = f"dec_{int(time.time())}_{hashlib.md5(request.request.encode()).hexdigest()[:8]}"
@@ -175,13 +340,13 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
                 message="High-risk transaction requires manual approval",
                 decision=agent_decision,
                 execution_time=execution_time,
-                agent_status=AgentStatus.WAITING_APPROVAL
+                agent_status=AgentStatus.WAITING
             )
         
         # Store in memory
         try:
             await memory_service.store(
-                wallet_address=context_data.get("wallet_address", "default"),
+                wallet_address=decision_context.wallet_address or "default",
                 agent_type="planner",
                 request=request.request,
                 response=agent_decision.dict(),
@@ -227,8 +392,9 @@ async def get_decision(decision_id: str):
         db_service = get_db_service()
         await db_service.connect()
         
-        # Query decision from database
-        decision_repo = await db_service.decisions()
+        # Query decision from database - decisions is an async property
+        decision_repo_coro = db_service.decisions
+        decision_repo = await decision_repo_coro
         decision = await decision_repo.find_by_id(decision_id)
         
         if not decision:
@@ -276,15 +442,15 @@ async def query_agent_memory(query: AgentMemoryQuery):
         )
         
         # Convert to response format
-        from app.models.agent import AgentMemory
+        from app.models.agent import AgentMemoryEntry
         memories = []
         for result in results:
-            memories.append(AgentMemory(
-                id=result["metadata"].get("id", "unknown"),
+            memories.append(AgentMemoryEntry(
+                entry_id=result["metadata"].get("id", "unknown"),
                 content=result["content"],
                 agent_type=AgentType(result["metadata"].get("agent_type", "planner")),
                 timestamp=datetime.fromisoformat(result["metadata"]["timestamp"]),
-                relevance=result.get("relevance", "medium")
+                metadata=result.get("metadata", {})
             ))
         
         return AgentMemoryResponse(

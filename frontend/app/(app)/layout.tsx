@@ -36,8 +36,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   // Show loading state during SSR and initial hydration to avoid mismatch
   if (!mounted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-gray-900 via-purple-900 to-gray-900">
-        <div className="text-white">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-wm-gradient">
+        <div className="text-foreground">Loading...</div>
       </div>
     );
   }
@@ -45,8 +45,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   // After hydration, check auth
   if (!authService.isAuthenticated()) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-gray-900 via-purple-900 to-gray-900">
-        <div className="text-white">Checking authentication...</div>
+      <div className="flex min-h-screen items-center justify-center bg-wm-gradient">
+        <div className="text-foreground">Checking authentication...</div>
       </div>
     );
   }

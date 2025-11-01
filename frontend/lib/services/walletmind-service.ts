@@ -3,6 +3,8 @@ import {
   APIProviderInfo,
   AgentHealth,
   AgentInfo,
+  AgentRequest,
+  AgentResponse,
   AuditTrailResponse,
   BalanceResponse,
   CreateAgentRequest,
@@ -135,4 +137,30 @@ export async function unpauseWallet(
 
 export async function createAgent(request: CreateAgentRequest): Promise<AgentInfo> {
   return apiPost<AgentInfo>("/api/agents/create", request);
+}
+
+export async function sendAgentRequest(request: AgentRequest): Promise<AgentResponse> {
+  return apiPost<AgentResponse>("/api/agents/request", request);
+}
+
+export async function respondToApproval(
+  decisionId: string,
+  approved: boolean,
+  reason?: string
+): Promise<AgentResponse> {
+  return apiPost<AgentResponse>("/api/agents/approval/respond", {
+    decision_id: decisionId,
+    approved,
+    reason,
+  });
+}
+
+export async function respondToClarification(
+  decisionId: string,
+  clarification: string
+): Promise<AgentResponse> {
+  return apiPost<AgentResponse>("/api/agents/clarification/respond", {
+    decision_id: decisionId,
+    clarification,
+  });
 }
