@@ -113,7 +113,7 @@ export function AppShell({ children }: PropsWithChildren) {
             );
           })}
         </nav>
-        <div className="mt-auto space-y-4 pt-10">
+        <div className="mt-6 space-y-4 pt-6">
           {currentUser && (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex items-start gap-3">
@@ -232,7 +232,7 @@ function AppTopBar({
 
 function DecorativeBackdrop() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-wm-gradient" />
       <div className="absolute inset-0 bg-wm-radial-blue mix-blend-screen" />
       <div className="absolute inset-0 bg-wm-radial-gold mix-blend-screen" />

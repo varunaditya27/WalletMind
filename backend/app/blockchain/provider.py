@@ -8,7 +8,12 @@ import logging
 from typing import Dict, Optional, Any
 from web3 import Web3
 from web3.providers import HTTPProvider
-from web3.middleware import geth_poa_middleware
+try:
+    # web3.py v7+ uses ExtraDataToPOAMiddleware
+    from web3.middleware import ExtraDataToPOAMiddleware as geth_poa_middleware
+except ImportError:
+    # Fallback for older web3.py versions
+    from web3.middleware import geth_poa_middleware  # type: ignore
 from eth_account import Account
 import time
 from dataclasses import dataclass
@@ -99,7 +104,12 @@ class Web3Provider:
                 
                 # Add PoA middleware for testnets (required for some networks)
                 if config.is_testnet:
-                    web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                    try:
+                        # web3.py v7+ syntax
+                        web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+                    except (TypeError, AttributeError):
+                        # web3.py v7+ alternative syntax if inject doesn't work
+                        web3.middleware_onion.add(geth_poa_middleware)
                 
                 # Test connection
                 if not web3.is_connected():

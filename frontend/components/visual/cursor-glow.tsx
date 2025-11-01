@@ -23,7 +23,7 @@ export function CursorGlow() {
 
   return (
     <motion.div
-      aria-hidden
+      aria-hidden="true"
       className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center"
       style={{ transform: "translate3d(0,0,0)" }}
     >

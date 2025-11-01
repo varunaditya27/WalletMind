@@ -220,6 +220,105 @@ Always return APIResponse with:
 
 Be efficient, secure, and cost-conscious in all API interactions."""
     
+    async def formulate_clarifying_question(
+        self,
+        context: DecisionContext,
+        ambiguous_request: str,
+        missing_information: List[str]
+    ) -> str:
+        """
+        Formulate a clarifying question for ambiguous user requests.
+        
+        Implements workflow: "Instead of proceeding, the CommunicatorAgent is invoked.
+        It formulates a clarifying question, such as 'Which crypto asset would you like
+        to send, how much, and what is your friend's wallet address?'"
+        
+        Args:
+            context: Decision context
+            ambiguous_request: The user's ambiguous request
+            missing_information: List of missing pieces of information
+            
+        Returns:
+            A clarifying question to ask the user
+        """
+        logger.info(f"Formulating clarification question for: {ambiguous_request[:50]}...")
+        
+        try:
+            # Use LLM to formulate a natural, friendly question
+            prompt = f"""
+The user made the following request: "{ambiguous_request}"
+
+However, we cannot process this request because it's missing the following information:
+{', '.join(missing_information)}
+
+Please formulate a clear, friendly clarifying question that asks the user for all the missing information at once.
+The question should be concise and easy to understand.
+            """
+            
+            response = await self.process(DecisionContext(
+                user_id=context.user_id,
+                wallet_address=context.wallet_address,
+                request=prompt,
+                network=context.network
+            ))
+            
+            question = response.reasoning if hasattr(response, 'reasoning') else self._default_clarification(missing_information)
+            logger.info(f"Clarification question: {question}")
+            return question
+            
+        except Exception as e:
+            logger.error(f"Failed to formulate clarification: {e}")
+            return self._default_clarification(missing_information)
+    
+    def _default_clarification(self, missing_info: List[str]) -> str:
+        """Generate a default clarification question"""
+        if "asset" in str(missing_info).lower():
+            return "Which cryptocurrency would you like to send (e.g., ETH, USDC)?"
+        elif "amount" in str(missing_info).lower():
+            return "How much would you like to send?"
+        elif "recipient" in str(missing_info).lower() or "address" in str(missing_info).lower():
+            return "What is the recipient's wallet address?"
+        else:
+            return f"Could you please provide more details? Specifically: {', '.join(missing_info)}"
+    
+    async def check_request_clarity(
+        self,
+        user_request: str
+    ) -> tuple[bool, List[str]]:
+        """
+        Check if a user request is clear enough to execute.
+        
+        Returns:
+            Tuple of (is_clear, list_of_missing_information)
+        """
+        missing = []
+        request_lower = user_request.lower()
+        
+        # Check for transaction intent keywords
+        has_action = any(keyword in request_lower for keyword in ["send", "transfer", "pay", "swap"])
+        
+        if has_action:
+            # Check for amount
+            import re
+            has_amount = bool(re.search(r'\d+\.?\d*', user_request))
+            if not has_amount:
+                missing.append("amount to send")
+            
+            # Check for asset/token
+            tokens = ["eth", "ether", "usdc", "dai", "weth", "btc"]
+            has_asset = any(token in request_lower for token in tokens)
+            if not has_asset:
+                missing.append("cryptocurrency asset")
+            
+            # Check for recipient address
+            has_address = bool(re.search(r'0x[a-fA-F0-9]{40}', user_request)) or \
+                         bool(re.search(r'\w+\.eth', user_request))
+            if not has_address:
+                missing.append("recipient wallet address")
+        
+        is_clear = len(missing) == 0
+        return is_clear, missing
+    
     async def __aenter__(self):
         """Setup async HTTP session"""
         self.session = aiohttp.ClientSession()

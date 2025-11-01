@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Brain, GitBranch, MessageCircle, Network, Radar } from "lucide-react";
 import type { ReactNode } from "react";
@@ -14,11 +14,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AgentChat } from "@/components/ui/agent-chat";
 import { useWalletMindStore } from "@/lib/stores/walletmind-store";
-import type { AuditEntry, WebsocketEvent } from "@/lib/types";
+import { sendAgentRequest, respondToApproval, respondToClarification } from "@/lib/services/walletmind-service";
+import { authService } from "@/lib/services/auth-service";
+import type { AuditEntry, WebsocketEvent, ChatMessage } from "@/lib/types";
 import { useShallow } from "zustand/react/shallow";
 
 export function AgentConsoleScreen() {
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [, setPendingDecisionId] = useState<string | null>(null);
+
   const {
     agentActivity,
     auditTrail,
@@ -38,6 +46,192 @@ export function AgentConsoleScreen() {
   useEffect(() => {
     initializeAgentConsole();
   }, [initializeAgentConsole]);
+
+  const handleSendMessage = useCallback(async (message: string) => {
+    const currentUser = authService.getUser();
+    if (!currentUser) {
+      alert("Please log in to interact with the agent");
+      return;
+    }
+
+    // Add user message to chat
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setIsLoadingChat(true);
+    setIsTyping(true);
+
+    try {
+      // Send request to agent
+      const response = await sendAgentRequest({
+        user_id: currentUser.id,
+        request: message,
+        context: {
+          wallet_address: currentUser.wallet_address,
+          username: currentUser.username,
+        },
+      });
+
+      setIsTyping(false);
+
+      // Add agent response to chat
+      const agentMessage: ChatMessage = {
+        id: `agent-${Date.now()}`,
+        role: "agent",
+        content: response.message,
+        timestamp: new Date().toISOString(),
+        decision: response.decision || undefined,
+        needsApproval: response.decision?.requires_approval || false,
+        needsClarification: response.decision?.action_type === "clarification" || false,
+      };
+
+      setChatMessages(prev => [...prev, agentMessage]);
+
+      // If successful execution, show confirmation
+      if (response.success && response.transaction_hash) {
+        const confirmMessage: ChatMessage = {
+          id: `system-${Date.now()}`,
+          role: "system",
+          content: `✅ Transaction executed successfully!\n\nTransaction Hash: ${response.transaction_hash}\n\nYou can view it on the blockchain explorer.`,
+          timestamp: new Date().toISOString(),
+        };
+        setChatMessages(prev => [...prev, confirmMessage]);
+      }
+
+    } catch (error) {
+      setIsTyping(false);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "system",
+        content: `❌ Error: ${error instanceof Error ? error.message : "Failed to process request. Please try again."}`,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  }, []);
+
+  const handleApprove = useCallback(async (decisionId: string) => {
+    setIsLoadingChat(true);
+    setIsTyping(true);
+
+    try {
+      const response = await respondToApproval(decisionId, true);
+      setIsTyping(false);
+
+      const agentMessage: ChatMessage = {
+        id: `agent-${Date.now()}`,
+        role: "agent",
+        content: response.message,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, agentMessage]);
+
+      if (response.success && response.transaction_hash) {
+        const confirmMessage: ChatMessage = {
+          id: `system-${Date.now()}`,
+          role: "system",
+          content: `✅ Transaction approved and executed!\n\nTransaction Hash: ${response.transaction_hash}`,
+          timestamp: new Date().toISOString(),
+        };
+        setChatMessages(prev => [...prev, confirmMessage]);
+      }
+
+      setPendingDecisionId(null);
+    } catch (error) {
+      setIsTyping(false);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "system",
+        content: `❌ Error approving decision: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  }, []);
+
+  const handleReject = useCallback(async (decisionId: string, reason?: string) => {
+    setIsLoadingChat(true);
+    setIsTyping(true);
+
+    try {
+      const response = await respondToApproval(decisionId, false, reason);
+      setIsTyping(false);
+
+      const agentMessage: ChatMessage = {
+        id: `agent-${Date.now()}`,
+        role: "agent",
+        content: response.message,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, agentMessage]);
+      setPendingDecisionId(null);
+    } catch (error) {
+      setIsTyping(false);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "system",
+        content: `❌ Error rejecting decision: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  }, []);
+
+  const handleClarify = useCallback(async (decisionId: string, clarification: string) => {
+    // Add user clarification to chat
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: clarification,
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+
+    setIsLoadingChat(true);
+    setIsTyping(true);
+
+    try {
+      const response = await respondToClarification(decisionId, clarification);
+      setIsTyping(false);
+
+      const agentMessage: ChatMessage = {
+        id: `agent-${Date.now()}`,
+        role: "agent",
+        content: response.message,
+        timestamp: new Date().toISOString(),
+        decision: response.decision || undefined,
+        needsApproval: response.decision?.requires_approval || false,
+      };
+      setChatMessages(prev => [...prev, agentMessage]);
+
+      if (response.decision?.requires_approval) {
+        setPendingDecisionId(response.decision.decision_id);
+      } else {
+        setPendingDecisionId(null);
+      }
+    } catch (error) {
+      setIsTyping(false);
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "system",
+        content: `❌ Error processing clarification: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  }, []);
 
   const cognitionNodes = useMemo(() => {
     if (agentActivity.length) {
@@ -106,17 +300,29 @@ export function AgentConsoleScreen() {
     <div className="space-y-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-muted">Agent cognition</p>
-          <h1 className="text-2xl font-semibold text-foreground">Live reasoning stream</h1>
+          <p className="text-xs uppercase tracking-[0.4em] text-muted">Agent Interaction</p>
+          <h1 className="text-2xl font-semibold text-foreground">Talk to Your AI Agent</h1>
           <p className="mt-1 text-sm text-muted">
-            Watch your AI agents think and make decisions in real-time
+            Have a conversation with your intelligent blockchain assistant
           </p>
         </div>
-        <Badge variant={loading ? "outline" : "gold"} className={loading ? "animate-pulse" : ""}>
-          {loading ? "Syncing cognition..." : "AI thinking · pulse active"}
+        <Badge variant={loading || isLoadingChat ? "outline" : "gold"} className={loading || isLoadingChat ? "animate-pulse" : ""}>
+          {isLoadingChat ? "Processing..." : loading ? "Syncing..." : "Agent ready"}
         </Badge>
       </div>
 
+      {/* Main Chat Interface - Prominent Position */}
+      <AgentChat
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onClarify={handleClarify}
+        isLoading={isLoadingChat}
+        isTyping={isTyping}
+      />
+
+      {/* Additional Agent Information Sections */}
       <section className="grid gap-6 lg:grid-cols-[1.1fr_minmax(0,0.9fr)]">
         <Card className="overflow-hidden">
           <CardHeader>
@@ -124,7 +330,7 @@ export function AgentConsoleScreen() {
               <Brain className="h-5 w-5 text-accent" />
               Thought timeline
             </CardTitle>
-            <CardDescription>Planner → Evaluator reasoning path in chronological order.</CardDescription>
+            <CardDescription>Recent agent reasoning and decision-making process.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             {loading && (
@@ -136,8 +342,8 @@ export function AgentConsoleScreen() {
               <div className="rounded-2xl border border-white/5 bg-black/20 p-6 text-sm text-muted">
                 <p className="font-semibold">No recent cognition events</p>
                 <p className="mt-2 text-xs">
-                  Agent thoughts will appear here when the Planner and Evaluator process decisions.
-                  Try making a transaction request to see the agents think.
+                  Agent thoughts will appear here when decisions are processed.
+                  Start a conversation above to see the agent think!
                 </p>
               </div>
             )}

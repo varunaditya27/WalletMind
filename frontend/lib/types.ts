@@ -90,6 +90,58 @@ export interface AgentHealth {
   last_active: string;
 }
 
+export interface CreateAgentRequest {
+  agent_type: AgentType;
+  name: string;
+  config?: Record<string, unknown>;
+}
+
+export interface AgentInfo {
+  agent_id: string;
+  agent_type: AgentType;
+  name: string;
+  status: AgentStatus;
+  created_at: string;
+  config?: Record<string, unknown>;
+}
+
+export interface AgentDecision {
+  decision_id: string;
+  intent: string;
+  action_type: string;
+  parameters: Record<string, unknown>;
+  reasoning: string;
+  risk_score: number;
+  estimated_cost?: number | null;
+  requires_approval: boolean;
+}
+
+export interface AgentRequest {
+  user_id: string;
+  request: string;
+  context?: Record<string, unknown> | null;
+  agent_type?: AgentType;
+}
+
+export interface AgentResponse {
+  success: boolean;
+  message: string;
+  decision?: AgentDecision | null;
+  execution_time?: number;
+  agent_status?: AgentStatus;
+  transaction_hash?: string | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "agent" | "system";
+  content: string;
+  timestamp: string;
+  decision?: AgentDecision;
+  needsApproval?: boolean;
+  needsClarification?: boolean;
+}
+
 export interface AuditEntry {
   entry_id: string;
   timestamp: string;

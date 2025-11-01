@@ -81,7 +81,8 @@ class OrchestratorAgent:
         evaluator: EvaluatorAgent,
         communicator: CommunicatorAgent,
         blockchain_service: Any,
-        memory_service: Any
+        memory_service: Any,
+        websocket_manager: Optional[Any] = None
     ):
         self.planner = planner
         self.executor = executor
@@ -89,6 +90,10 @@ class OrchestratorAgent:
         self.communicator = communicator
         self.blockchain_service = blockchain_service
         self.memory_service = memory_service
+        self.websocket_manager = websocket_manager
+        
+        # Track pending approvals
+        self.pending_approvals: Dict[str, AgentState] = {}
         
         # Build LangGraph workflow
         self.workflow = self._build_workflow()
@@ -138,6 +143,198 @@ class OrchestratorAgent:
         workflow.add_edge("log_decision", END)
         
         return workflow
+    
+    async def _broadcast_update(self, event_type: str, data: Dict[str, Any]):
+        """Broadcast workflow updates via WebSocket"""
+        if self.websocket_manager:
+            try:
+                await self.websocket_manager.broadcast({
+                    "type": event_type,
+                    "data": data,
+                    "timestamp": datetime.now().isoformat()
+                }, channel="agents")
+            except Exception as e:
+                logger.warning(f"Failed to broadcast update: {e}")
+    
+    async def request_manual_approval(
+        self,
+        request_id: str,
+        state: AgentState,
+        reason: str
+    ) -> str:
+        """
+        Request manual approval for high-risk transaction.
+        
+        Implements workflow: "The OrchestratorAgent sees the high-risk score and flags
+        the transaction for manual approval."
+        
+        Args:
+            request_id: Unique identifier for this request
+            state: Current workflow state
+            reason: Reason for requiring approval
+            
+        Returns:
+            approval_id that can be used to approve/reject
+        """
+        approval_id = f"approval_{request_id}_{int(datetime.now().timestamp())}"
+        
+        # Store pending approval
+        self.pending_approvals[approval_id] = state
+        
+        # Broadcast approval request via WebSocket
+        await self._broadcast_update("approval_required", {
+            "approval_id": approval_id,
+            "request_id": request_id,
+            "user_request": state.get("user_request"),
+            "plan": state.get("plan"),
+            "reason": reason,
+            "wallet_address": state.get("wallet_address")
+        })
+        
+        logger.info(f"Manual approval requested: {approval_id}")
+        return approval_id
+    
+    async def handle_approval_response(
+        self,
+        approval_id: str,
+        approved: bool,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Handle user's response to approval request.
+        
+        Args:
+            approval_id: The approval request ID
+            approved: Whether user approved or rejected
+            user_id: User making the decision
+            
+        Returns:
+            Result of continuing workflow or rejection
+        """
+        if approval_id not in self.pending_approvals:
+            return {
+                "success": False,
+                "error": "Approval request not found or expired"
+            }
+        
+        state = self.pending_approvals[approval_id]
+        
+        # Broadcast approval response
+        await self._broadcast_update("approval_response", {
+            "approval_id": approval_id,
+            "approved": approved,
+            "user_id": user_id
+        })
+        
+        if approved:
+            logger.info(f"Transaction approved by user: {approval_id}")
+            # Update state and continue workflow
+            state["approved"] = True
+            
+            # Continue from execution step
+            state = await self._execute_transaction(state)
+            state = await self._evaluate_outcome(state)
+            state = await self._log_decision(state)
+            
+            # Clean up
+            del self.pending_approvals[approval_id]
+            
+            return {
+                "success": True,
+                "result": state.get("final_result"),
+                "execution": state.get("execution_result")
+            }
+        else:
+            logger.info(f"Transaction rejected by user: {approval_id}")
+            state["approved"] = False
+            state = await self._reject_transaction(state)
+            state = await self._log_decision(state)
+            
+            # Clean up
+            del self.pending_approvals[approval_id]
+            
+            return {
+                "success": False,
+                "result": state.get("final_result"),
+                "reason": "Rejected by user"
+            }
+    
+    async def request_clarification(
+        self,
+        request_id: str,
+        state: AgentState,
+        question: str
+    ) -> str:
+        """
+        Request clarification from user for ambiguous requests.
+        
+        Implements workflow: "Instead of proceeding, the CommunicatorAgent is invoked.
+        It formulates a clarifying question."
+        
+        Args:
+            request_id: Unique identifier for this request
+            state: Current workflow state
+            question: Clarifying question to ask user
+            
+        Returns:
+            clarification_id that can be used to provide answer
+        """
+        clarification_id = f"clarify_{request_id}_{int(datetime.now().timestamp())}"
+        
+        # Store pending clarification
+        self.pending_approvals[clarification_id] = state
+        
+        # Broadcast clarification request
+        await self._broadcast_update("clarification_required", {
+            "clarification_id": clarification_id,
+            "request_id": request_id,
+            "question": question,
+            "original_request": state.get("user_request")
+        })
+        
+        logger.info(f"Clarification requested: {clarification_id}")
+        return clarification_id
+    
+    async def handle_clarification_response(
+        self,
+        clarification_id: str,
+        answer: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Handle user's clarification response and restart workflow.
+        
+        Args:
+            clarification_id: The clarification request ID
+            answer: User's answer to the question
+            user_id: User providing the answer
+            
+        Returns:
+            Result of restarting workflow with clarified request
+        """
+        if clarification_id not in self.pending_approvals:
+            return {
+                "success": False,
+                "error": "Clarification request not found or expired"
+            }
+        
+        state = self.pending_approvals[clarification_id]
+        
+        # Update request with clarification
+        original_request = state.get("user_request", "")
+        clarified_request = f"{original_request}. {answer}"
+        
+        # Clean up
+        del self.pending_approvals[clarification_id]
+        
+        # Restart workflow with clarified request
+        return await self.process_request(
+            user_request=clarified_request,
+            user_id=user_id,
+            wallet_address=state.get("wallet_address", ""),
+            network=state.get("network", "sepolia"),
+            spending_limit=state.get("spending_limit")
+        )
     
     async def process_request(
         self,
@@ -303,24 +500,70 @@ class OrchestratorAgent:
             return state
         
         try:
-            plan = TransactionPlan(**state["plan"])
+            plan_dict = state["plan"]
+            if not isinstance(plan_dict, dict):
+                state["approved"] = False
+                state["error"] = "Invalid plan format"
+                return state
+            
+            plan = TransactionPlan(**plan_dict)
+            
+            # Broadcast risk evaluation update
+            await self._broadcast_update("risk_evaluation", {
+                "request": state["user_request"],
+                "risk_level": plan.risk_level,
+                "amount": plan.amount,
+                "requires_approval": plan.requires_approval
+            })
             
             # Analyze financial feasibility
             analysis = await self.planner.analyze_financial_feasibility(
                 plan,
-                wallet_balance=state.get("wallet_balance", 0.0),
+                wallet_balance=state.get("wallet_balance") or 0.0,
                 spending_limit=state.get("spending_limit"),
                 daily_spent=state.get("daily_spent", 0.0)
             )
             
-            # Decide approval
-            state["approved"] = analysis.can_execute and not plan.requires_approval
+            # Check for insufficient funds
+            if not analysis.balance_sufficient:
+                await self._broadcast_update("insufficient_funds", {
+                    "required": (plan.amount or 0) + (plan.estimated_gas or 0),
+                    "available": state.get("wallet_balance", 0),
+                    "deficit": (plan.amount or 0) + (plan.estimated_gas or 0) - (state.get("wallet_balance") or 0)
+                })
+                state["approved"] = False
+                state["error"] = f"Insufficient funds: need {(plan.amount or 0) + (plan.estimated_gas or 0)} ETH, have {state.get('wallet_balance', 0)} ETH"
+                return state
+            
+            # Check if manual approval required (high-risk transaction)
+            if plan.requires_approval or plan.risk_level == "high":
+                reason = f"High-risk transaction: {plan.risk_level} risk level"
+                if analysis.warnings:
+                    reason += f". Warnings: {', '.join(analysis.warnings)}"
+                
+                # Don't auto-approve, let the API handler deal with manual approval
+                state["approved"] = False
+                state["requires_manual_approval"] = True
+                state["approval_reason"] = reason
+                
+                state["messages"].append(AIMessage(content=f"Manual approval required: {reason}"))
+                logger.info(f"Manual approval required: {reason}")
+                return state
+            
+            # Auto-approve low-risk transactions
+            state["approved"] = analysis.can_execute
             
             reasoning = f"Risk: {plan.risk_level}, Can execute: {analysis.can_execute}"
             if analysis.warnings:
                 reasoning += f", Warnings: {', '.join(analysis.warnings)}"
             
             state["messages"].append(AIMessage(content=reasoning))
+            
+            await self._broadcast_update("risk_evaluated", {
+                "approved": state["approved"],
+                "risk_level": plan.risk_level,
+                "reasoning": reasoning
+            })
             
             logger.info(f"Risk evaluation: {'Approved' if state['approved'] else 'Rejected'}")
             
@@ -346,9 +589,50 @@ class OrchestratorAgent:
             return state
         
         try:
-            plan = TransactionPlan(**state["plan"])
+            plan_dict = state["plan"]
+            if not isinstance(plan_dict, dict):
+                state["error"] = "Invalid plan format"
+                return state
+                
+            plan = TransactionPlan(**plan_dict)
             
-            # Convert to execution plan
+            # Broadcast execution start
+            await self._broadcast_update("execution_started", {
+                "action": plan.action,
+                "to_address": plan.to_address,
+                "amount": plan.amount
+            })
+            
+            # Step 1: Log decision to IPFS and blockchain (FR-007)
+            logger.info("Logging decision to IPFS and blockchain...")
+            decision_data = {
+                "transaction_plan": plan_dict,
+                "risk_analysis": {
+                    "risk_level": plan.risk_level,
+                    "reasoning": plan.reasoning,
+                    "estimated_gas": plan.estimated_gas
+                },
+                "timestamp": datetime.utcnow().isoformat(),
+                "wallet_address": state["wallet_address"],
+                "user_request": state["user_request"]
+            }
+            
+            decision_hash, ipfs_cid, log_success = await self.executor.log_decision_on_chain(
+                decision_data=decision_data,
+                agent_wallet_address=state["wallet_address"],
+                network=plan.network
+            )
+            
+            if log_success:
+                await self._broadcast_update("decision_logged", {
+                    "decision_hash": decision_hash,
+                    "ipfs_cid": ipfs_cid
+                })
+                logger.info(f"Decision logged: hash={decision_hash}, ipfs={ipfs_cid}")
+            else:
+                logger.warning("Decision logging failed, continuing anyway")
+            
+            # Step 2: Execute transaction
             exec_plan = ExecutionPlan(
                 transaction_type=plan.action,
                 to_address=plan.to_address or "0x0000000000000000000000000000000000000000",
@@ -375,15 +659,27 @@ class OrchestratorAgent:
                 "transaction_hash": result.transaction_hash,
                 "gas_used": result.gas_used,
                 "status": result.status.value,
-                "error": result.error
+                "error": result.error,
+                "decision_hash": decision_hash if log_success else None,
+                "ipfs_cid": ipfs_cid if log_success else None
             }
             
             if result.success:
+                await self._broadcast_update("transaction_confirmed", {
+                    "transaction_hash": result.transaction_hash,
+                    "gas_used": result.gas_used,
+                    "decision_hash": decision_hash,
+                    "ipfs_cid": ipfs_cid
+                })
                 state["messages"].append(
                     AIMessage(content=f"Transaction executed: {result.transaction_hash}")
                 )
                 logger.info(f"Transaction successful: {result.transaction_hash}")
             else:
+                await self._broadcast_update("transaction_failed", {
+                    "error": result.error,
+                    "status": result.status.value
+                })
                 state["messages"].append(
                     AIMessage(content=f"Transaction failed: {result.error}")
                 )
@@ -391,6 +687,9 @@ class OrchestratorAgent:
             
         except Exception as e:
             logger.error(f"Execution failed: {e}", exc_info=True)
+            await self._broadcast_update("execution_error", {
+                "error": str(e)
+            })
             state["execution_result"] = {
                 "success": False,
                 "error": str(e)

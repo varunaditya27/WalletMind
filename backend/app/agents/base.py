@@ -16,7 +16,6 @@ from langchain_core.messages.ai import AIMessage
 from langchain_core.messages.system import SystemMessage
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools.base import BaseTool
-from langchain.agents.factory import create_agent
 from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
@@ -104,21 +103,21 @@ class BaseAgent(ABC):
         pass
     
     def _create_agent_executor(self):
-        """Create LangChain agent using create_agent factory"""
+        """Create LangChain agent executor - simplified to direct LLM usage"""
+        # For now, we'll use direct LLM invocation instead of complex agent chains
+        # This is simpler and works well for our use case where agents analyze and make decisions
+        # rather than use tools extensively
+        
+        # Create a simple prompt template for the agent
         system_prompt = self.get_system_prompt()
-        prompt = ChatPromptTemplate.from_messages([
+        self.prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history", optional=True),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad")
+            ("human", "{input}")
         ])
-        # Use create_agent factory to build agent
-        agent = create_agent(
-            llm=self.llm,
-            tools=self.tools,
-            prompt=prompt
-        )
-        return agent
+        
+        # Return None - we'll use direct LLM invocation in the process method
+        return None
     
     async def process(
         self,
@@ -150,22 +149,31 @@ class BaseAgent(ABC):
             if additional_input:
                 input_text = f"{input_text}\n\nAdditional instructions: {additional_input}"
             
-            # Execute agent
-            result = await self.agent_executor.ainvoke({
-                "input": input_text,
-                "chat_history": chat_history
-            })
-            # The new agent returns output directly, intermediate_steps may not be present
-            output = result.get("output", result)
-            reasoning = self._extract_reasoning(result.get("intermediate_steps", [])) if "intermediate_steps" in result else "Direct response without tool use"
+            # Execute agent using direct LLM invocation
+            messages = []
+            if chat_history:
+                messages.extend(chat_history)
+            
+            # Format the prompt
+            formatted_prompt = self.prompt.format_messages(
+                input=input_text,
+                chat_history=chat_history
+            )
+            
+            # Invoke LLM
+            response_message = await self.llm.ainvoke(formatted_prompt)
+            output = response_message.content
+            
+            reasoning = f"Processed request using {self.agent_type} agent with LLM {self.config.llm_model}"
+            
             response = AgentResponse(
                 agent_type=self.agent_type,
                 success=True,
-                result=output,
+                result={"response": output, "context": context.dict()},
                 reasoning=reasoning,
                 metadata={
-                    "iterations": len(result.get("intermediate_steps", [])) if "intermediate_steps" in result else 1,
-                    "tools_used": [step[0].tool for step in result.get("intermediate_steps", [])] if "intermediate_steps" in result else []
+                    "model": self.config.llm_model,
+                    "temperature": self.config.temperature
                 }
             )
             # Store in memory
@@ -234,13 +242,12 @@ class BaseAgent(ABC):
     
     def invoke_sync(self, input_text: str) -> Dict[str, Any]:
         """Synchronous invocation for simple cases"""
-        result = self.agent_executor.invoke({"input": input_text})
-        return result
+        formatted_prompt = self.prompt.format_messages(input=input_text, chat_history=[])
+        response_message = self.llm.invoke(formatted_prompt)
+        return {"response": response_message.content}
 
     async def ainvoke(self, input_text: str, chat_history: Optional[List[BaseMessage]] = None) -> Dict[str, Any]:
         """Async invocation with optional chat history"""
-        result = await self.agent_executor.ainvoke({
-            "input": input_text,
-            "chat_history": chat_history or []
-        })
-        return result
+        formatted_prompt = self.prompt.format_messages(input=input_text, chat_history=chat_history or [])
+        response_message = await self.llm.ainvoke(formatted_prompt)
+        return {"response": response_message.content}

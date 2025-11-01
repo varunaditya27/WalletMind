@@ -19,7 +19,7 @@ Card.displayName = "Card";
 
 const CardBackground = ({ className }: { className?: string }) => (
   <span
-    aria-hidden
+    aria-hidden="true"
     className={cn(
       "pointer-events-none absolute -inset-1 opacity-0 blur-2xl transition-opacity duration-400 group-hover:opacity-100",
       className
