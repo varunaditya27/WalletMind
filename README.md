@@ -1,41 +1,74 @@
-# WalletMind - AI Agent Autonomous Wallet System
+<div align="center">
+
+# WalletMind: Autonomous AI Agent Wallet System
+
+</div>
+
+<div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/Node-20+-green.svg)](https://nodejs.org/)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/Node-20+-green.svg)](https://nodejs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-_1CC.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](httpshttps://img.shields.io/badge/Next.js-14+-black.svg)](https://nextjs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3+-38B2AC.svg)](https://tailwindcss.com/)
+[![Hardhat](https://img.shields.io/badge/Hardhat-2+-blue.svg)](https://hardhat.org/)
+[![LangChain](https://img.shields.io/badge/LangChain-0.1+-yellow.svg)](https://www.langchain.com/)
 
-**WalletMind** is a production-ready autonomous AI agent wallet system that enables AI agents to make verifiable, auditable blockchain transactions. Built with LangChain, FastAPI, Next.js, and ERC-4337 smart accounts.
+</div>
+
+<div align="center">
+
+**WalletMind** is a production-grade, autonomous AI agent wallet system engineered to empower AI agents as verifiable, auditable economic actors on the blockchain. It integrates LangChain, FastAPI, Next.js, and ERC-4337 smart accounts to deliver a robust platform for autonomous operations.
+
+</div>
 
 ## 🌟 Features
 
 ### Core Capabilities
-- **🤖 Multi-Agent Orchestration**: Planner, Executor, Evaluator, and Communicator agents coordinate via LangChain
-- **🔐 ERC-4337 Smart Accounts**: Safe SDK integration with programmable guardrails
-- **📝 On-Chain Provenance**: Every decision is hashed, timestamped, and logged before execution
-- **💰 API Payment Automation**: Autonomous payments for Groq, Google AI Studio, and x402 APIs
-- **🌐 Multi-Network Support**: Ethereum Sepolia, Polygon Amoy, Base Goerli
-- **📊 Real-Time Dashboard**: WebSocket-powered live updates and telemetry
-- **🔍 Verification & Audit**: Complete audit trail with IPFS storage and blockchain anchoring
+- **🤖 Multi-Agent Orchestration**: A sophisticated multi-agent system (Planner, Executor, Evaluator, Communicator) coordinates complex tasks using LangChain.
+- **🔐 ERC-4337 Smart Accounts**: Leverages Safe SDK for programmable, secure smart accounts with customizable guardrails.
+- **📝 On-Chain Provenance**: Implements a "decision-first" workflow where every agent decision is hashed, timestamped, and logged on-chain *before* execution.
+- **💰 Autonomous Payments**: Natively supports automated payments for services like Groq, Google AI Studio, and other x402-compliant APIs.
+- **🌐 Multi-Network Support**: Production-ready for Ethereum Sepolia, Polygon Amoy, and Base Goerli.
+- **📊 Real-Time Dashboard**: A sleek, WebSocket-powered dashboard provides live telemetry and operational insights.
+- **🔍 Verifiable Audits**: Guarantees a complete, immutable audit trail by anchoring proofs to IPFS and the blockchain.
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
+WalletMind is a full-stack, three-part system composed of a frontend, backend, and blockchain component that work in concert to deliver autonomous agent capabilities.
+
+```mermaid
+graph TD
+    subgraph User Interface
+        A[Next.js Frontend]
+    end
+
+    subgraph Backend Services
+        B[FastAPI Server]
+        C[Multi-Agent System]
+        D[PostgreSQL Database]
+        E[ChromaDB Vector Memory]
+    end
+
+    subgraph Blockchain Network
+        F[AgentWallet & AgentRegistry Contracts]
+        G[EVM-Compatible Chain]
+    end
+
+    A -- "REST & WebSocket" --> B
+    B -- "Orchestrates" --> C
+    C -- "Stores & Retrieves Data" --> D
+    C -- "Accesses Contextual Memory" --> E
+    B -- "Submits Transactions" --> F
+    F -- "Deployed on" --> G
 ```
-WalletMind/
-├── backend/                 # FastAPI + LangChain backend
-│   ├── app/
-│   │   ├── agents/         # AI agents (Planner, Executor, Evaluator, Communicator)
-│   │   ├── api/            # REST & WebSocket endpoints
-│   │   ├── blockchain/     # Web3 integration
-│   │   ├── services/       # Business logic
-│   │   └── models/         # Pydantic schemas
-├── frontend/                # Next.js 15 + React dashboard
-│   ├── app/                # App router pages
-│   ├── components/         # UI components
-│   └── lib/                # Services, stores, utilities
-└── blockchain/             # Hardhat smart contracts
-    ├── contracts/          # AgentWallet, AgentRegistry
-    └── scripts/            # Deployment scripts
-```
+
+| Component | Technology | Purpose |
+|---|---|---|
+| **Frontend** | Next.js, TypeScript, Tailwind | Provides a real-time user interface for monitoring and managing agents. |
+| **Backend** | FastAPI, Python, LangChain | Orchestrates the multi-agent system, handles business logic, and serves the API. |
+| **Blockchain** | Solidity, Hardhat, Viem | Implements the on-chain decision logging and agent registry for security and auditability. |
 
 ## 🚀 Quick Start
 
@@ -109,19 +142,6 @@ npx hardhat compile
 npx hardhat run scripts/deploy.ts --network sepolia
 ```
 
-## 📚 Documentation
-
-### API Documentation
-
-- **Swagger UI**: http://localhost:8000/api/docs
-- **ReDoc**: http://localhost:8000/api/redoc
-- **Full API Guide**: [backend/docs/API_IMPLEMENTATION_COMPLETE.md](backend/docs/API_IMPLEMENTATION_COMPLETE.md)
-
-### Architecture Guides
-
-- **Agent Implementation**: [backend/docs/AGENT_IMPLEMENTATION.md](backend/docs/AGENT_IMPLEMENTATION.md)
-- **Blockchain Integration**: [backend/docs/BLOCKCHAIN_COMPLETE.md](backend/docs/BLOCKCHAIN_COMPLETE.md)
-- **Security**: [backend/docs/SECURITY_COMPLETE.md](backend/docs/SECURITY_COMPLETE.md)
 
 ## 🔧 Configuration
 
@@ -218,27 +238,6 @@ WalletMind implements multiple security layers:
 - **Decision Verification**: Pre-execution decision hashing
 - **Multi-Signature Support**: Safe smart account integration
 
-## 📈 Roadmap
-
-### v1.0 (Current)
-- ✅ Multi-agent orchestration
-- ✅ ERC-4337 smart accounts
-- ✅ On-chain decision logging
-- ✅ Real-time dashboard
-- ✅ API payment automation
-
-### v1.1 (Planned)
-- [ ] Mainnet deployment
-- [ ] Additional LLM providers
-- [ ] Advanced spending strategies
-- [ ] Mobile app
-
-### v2.0 (Future)
-- [ ] Cross-chain operations
-- [ ] DeFi protocol integration
-- [ ] Agent marketplace
-- [ ] Reputation system
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
@@ -264,7 +263,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/varunaditya27/WalletMind/issues)
-- **Documentation**: [Full docs](https://github.com/varunaditya27/WalletMind/wiki)
 
 ---
 

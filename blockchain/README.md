@@ -1,6 +1,10 @@
+<div align="center">
+
 # WalletMind - Smart Contracts
 
 > Verifiable on-chain decision logging for autonomous AI agents
+
+</div>
 
 The WalletMind smart contract infrastructure provides cryptographic proof-of-decision logging and agent registry services for autonomous AI wallet operations on EVM-compatible chains.
 
@@ -20,6 +24,30 @@ This directory contains Solidity smart contracts implementing:
 ---
 
 ## 🏗️ Contract Architecture
+
+The smart contract system follows a "decision-first" workflow, ensuring that every action taken by an AI agent is pre-validated and logged on-chain before it can be executed.
+
+```mermaid
+sequenceDiagram
+    participant B as Backend
+    participant AW as AgentWallet
+    participant AR as AgentRegistry
+
+    B->>AW: logDecision(decisionHash, ipfsHash)
+    activate AW
+    AW-->>B: DecisionLogged event
+    deactivate AW
+
+    B->>AW: executeDecision(decisionId, to, value, data)
+    activate AW
+    AW-->>B: DecisionExecuted event
+    deactivate AW
+
+    B->>AR: updateReputation(agentAddress, success)
+    activate AR
+    AR-->>B: ReputationUpdated event
+    deactivate AR
+```
 
 ### AgentWallet.sol
 
@@ -564,12 +592,6 @@ export default config;
 - [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
 - [Ethers.js v6 Docs](https://docs.ethers.org/v6/)
 
-### WalletMind Docs
-- [Main README](../README.md)
-- [Backend README](../backend/README.md)
-- [Blockchain Implementation](./docs/BLOCKCHAIN_COMPLETE.md)
-- [Production Ready Guide](./docs/PRODUCTION-READY.md)
-
 ### Tutorials
 - [Hardhat Getting Started](https://hardhat.org/tutorial)
 - [Smart Contract Security](https://consensys.github.io/smart-contract-best-practices/)
@@ -692,7 +714,6 @@ Need help?
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/WalletMind/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/WalletMind/discussions)
-- **Security**: security@walletmind.io
 
 ---
 

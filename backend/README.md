@@ -1,6 +1,10 @@
+<div align="center">
+
 # WalletMind Backend
 
 > Autonomous AI wallet backend powered by FastAPI, LangChain, and ChromaDB
+
+</div>
 
 The WalletMind backend is a production-grade FastAPI application that orchestrates LangChain AI agents to make autonomous, verifiable on-chain decisions. It features real-time WebSocket communication, vector-based memory, and comprehensive audit trails.
 
@@ -205,37 +209,33 @@ prisma studio
 
 ## 🤖 Agent System
 
+The backend's core is a multi-agent system orchestrated by a central `OrchestratorAgent`. This design allows for a clear separation of concerns and robust, extensible workflows.
+
+```mermaid
+graph TD
+    A[User Request] --> B{Orchestrator};
+    B --> C[PlannerAgent];
+    C -- "Plan & Risk Analysis" --> B;
+    B -- "Approved Plan" --> D[ExecutorAgent];
+    D -- "Executes Transaction" --> E[Blockchain];
+    D -- "Execution Result" --> B;
+    B --> F[EvaluatorAgent];
+    F -- "Performance Metrics" --> B;
+    subgraph External Communication
+        G[CommunicatorAgent];
+    end
+    B -- "Needs External Data" --> G;
+    G -- "Fetches Data (Oracles, APIs)" --> B;
+    B -- "Final Response" --> H[User];
+```
+
 ### Agent Types
 
-1. **PlannerAgent** (`planner.py`)
-   - Analyzes user requests
-   - Assesses risk scores
-   - Plans multi-step actions
-   - Checks known address registry
-
-2. **ExecutorAgent** (`executor.py`)
-   - Executes approved transactions
-   - Constructs userOperations
-   - Handles gas estimation
-   - Manages transaction lifecycle
-
-3. **EvaluatorAgent** (`evaluator.py`)
-   - Post-execution analysis
-   - Performance metrics
-   - Cost optimization
-   - Success/failure analysis
-
-4. **CommunicatorAgent** (`communicator.py`)
-   - Oracle data queries
-   - Inter-agent messaging
-   - External API calls
-   - Agent discovery
-
-5. **OrchestratorAgent** (`orchestrator.py`)
-   - Coordinates all agents
-   - Manages workflow
-   - Error handling
-   - State management
+1.  **PlannerAgent** (`planner.py`): Analyzes user requests, assesses risk, and creates multi-step execution plans.
+2.  **ExecutorAgent** (`executor.py`): Executes approved plans, constructs blockchain transactions, and manages the transaction lifecycle.
+3.  **EvaluatorAgent** (`evaluator.py`): Performs post-execution analysis, gathers performance metrics, and suggests optimizations.
+4.  **CommunicatorAgent** (`communicator.py`): Handles all external communication, including querying oracles and interacting with third-party APIs.
+5.  **OrchestratorAgent** (`orchestrator.py`): The central coordinator that manages the workflow, state, and error handling between all other agents.
 
 ### Agent Tools
 
@@ -283,6 +283,23 @@ result = await planner.evaluate_risk(context)
 ---
 
 ## 📡 API Reference
+
+### API Endpoint Summary
+
+| Category | Endpoint | Method | Description |
+|---|---|---|---|
+| **Agents** | `/api/agents/request` | `POST` | Processes a natural language request through the agent system. |
+| | `/api/agents/health` | `GET` | Retrieves the health status of all agents. |
+| | `/api/agents/decision/{id}`| `GET` | Fetches the details of a specific agent decision. |
+| | `/api/agents/memory/query` | `POST` | Queries the agent's vector memory for relevant context. |
+| | `/api/agents/memory/store` | `POST` | Stores a new interaction in the agent's memory. |
+| **Transactions**| `/api/transactions/submit` | `POST` | Submits a new transaction to the blockchain. |
+| | `/api/transactions/{hash}` | `GET` | Retrieves the status and details of a transaction. |
+| | `/api/transactions/history`| `GET` | Gets the transaction history for a specific wallet. |
+| **Wallet** | `/api/wallet/{address}/balance`| `GET` | Fetches the token balances for a wallet across all supported networks. |
+| | `/api/wallet/{address}/status` | `GET` | Retrieves the current configuration and status of a wallet. |
+| **Verification**| `/api/verification/audit-trail`| `GET` | Gets the complete, verifiable audit trail for a wallet. |
+| | `/api/verification/timeline` | `GET` | Retrieves a chronological timeline of all decisions and transactions. |
 
 ### Core Endpoints
 
@@ -779,13 +796,6 @@ uvicorn app.main:app --workers 2  # Reduce from 4
 - [Prisma Python Client](https://prisma-client-py.readthedocs.io/)
 - [ChromaDB Documentation](https://docs.trychroma.com/)
 
-### WalletMind Docs
-- [Main README](../README.md)
-- [WalletMind PRD](../WalletMind-PRD.md)
-- [Implementation Guide](./docs/IMPLEMENTATION_COMPLETE.md)
-- [Agent Implementation](./docs/AGENT_IMPLEMENTATION.md)
-- [Blockchain Integration](./docs/BLOCKCHAIN_COMPLETE.md)
-
 ### Tutorials
 - [Building LangChain Agents](https://python.langchain.com/docs/modules/agents/)
 - [FastAPI Best Practices](https://fastapi.tiangolo.com/tutorial/)
@@ -866,8 +876,6 @@ Need help?
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/WalletMind/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/WalletMind/discussions)
-- **Email**: support@walletmind.io
-- **Documentation**: [Full Docs](./docs/)
 
 ---
 
