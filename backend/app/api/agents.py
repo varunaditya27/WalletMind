@@ -106,11 +106,26 @@ def get_blockchain_service() -> Optional[WalletManager]:
     global _blockchain_service
     if _blockchain_service is None:
         try:
+            # Get settings
+            settings = get_settings()
+            
             # Initialize Web3 provider for Sepolia (default testnet)
             provider = Web3Provider()
-            provider.connect(NetworkType.SEPOLIA)
-            _blockchain_service = WalletManager(provider)
-            logger.info("Initialized blockchain service with Sepolia testnet")
+            provider.connect(
+                NetworkType.SEPOLIA,
+                rpc_url=settings.blockchain.sepolia_rpc_url
+            )
+            
+            # Create WalletManager from private key if available
+            if settings.blockchain.agent_private_key:
+                _blockchain_service = WalletManager.from_private_key(
+                    settings.blockchain.agent_private_key
+                )
+                logger.info(f"Initialized blockchain service with Sepolia testnet (RPC: {settings.blockchain.sepolia_rpc_url[:50]}...)")
+            else:
+                logger.warning("No agent private key configured, blockchain service will not be available")
+                _blockchain_service = None
+                
         except Exception as e:
             logger.error(f"Failed to initialize blockchain service: {e}")
             # Return None for development - some features may not work without blockchain
@@ -260,6 +275,7 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
         # Get services
         orchestrator = get_orchestrator()
         memory_service = get_memory_service()
+        blockchain_service = get_blockchain_service()
         
         # Update metrics
         _agent_metrics["planner"]["requests"] += 1
@@ -314,8 +330,65 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
             metadata=request.context or {}
         )
         
-        # Generate decision
-        decision_result = await planner.evaluate_risk(decision_context)
+        # Process the request through the planner agent (this calls the LLM)
+        planner_response = await planner.process(decision_context)
+        
+        if not planner_response.success:
+            execution_time = time.time() - start_time
+            return AgentResponse(
+                success=False,
+                message=f"Planner failed: {planner_response.error}",
+                decision=None,
+                execution_time=execution_time,
+                agent_status=AgentStatus.ERROR
+            )
+        
+        # Extract decision details from planner response
+        planner_result = planner_response.result.get("response", "")
+        
+        # Parse the planner's output to determine risk and action
+        # For now, use simple heuristics - TODO: improve with structured output
+        risk_score = 0.3  # Default medium-low risk
+        if any(word in planner_result.lower() for word in ["high risk", "dangerous", "unsafe", "warning"]):
+            risk_score = 0.8
+        elif any(word in planner_result.lower() for word in ["medium risk", "caution", "careful"]):
+            risk_score = 0.5
+        
+        # Determine if it's a transaction
+        is_transaction = any(word in request.request.lower() for word in ["send", "transfer", "pay", "swap"])
+        
+        # Calculate accurate estimated cost if it's a transaction
+        estimated_cost = 0.0
+        if is_transaction:
+            # Extract amount from request (simple regex for now)
+            import re
+            amount_match = re.search(r'(\d+\.?\d*)\s*(eth|ether|sepolia|token)?', request.request.lower())
+            transaction_amount = float(amount_match.group(1)) if amount_match else 0.0
+            
+            # Estimate gas cost (21000 gas for simple transfer)
+            base_gas = 21000
+            # Get current gas price from blockchain service if available
+            try:
+                if blockchain_service and hasattr(blockchain_service, 'web3_provider'):
+                    provider = blockchain_service.web3_provider
+                    if provider and hasattr(provider, '_connections') and NetworkType.SEPOLIA in provider._connections:
+                        web3 = provider._connections[NetworkType.SEPOLIA]
+                        gas_price_wei = web3.eth.gas_price
+                        gas_cost_eth = (base_gas * gas_price_wei) / 1e18
+                        estimated_cost = transaction_amount + gas_cost_eth
+                        logger.info(f"Calculated gas cost: {gas_cost_eth} ETH (gas price: {gas_price_wei} wei)")
+                    else:
+                        # Fallback: estimate ~20 Gwei gas price
+                        gas_cost_eth = (base_gas * 20e9) / 1e18  # 20 Gwei
+                        estimated_cost = transaction_amount + gas_cost_eth
+                else:
+                    # Fallback: estimate ~20 Gwei gas price
+                    gas_cost_eth = (base_gas * 20e9) / 1e18  # 20 Gwei
+                    estimated_cost = transaction_amount + gas_cost_eth
+            except Exception as gas_error:
+                logger.warning(f"Could not fetch gas price: {gas_error}, using fallback")
+                gas_cost_eth = (base_gas * 20e9) / 1e18  # 20 Gwei fallback
+                estimated_cost = transaction_amount + gas_cost_eth
         
         # Create decision hash for tracking
         decision_id = f"dec_{int(time.time())}_{hashlib.md5(request.request.encode()).hexdigest()[:8]}"
@@ -324,12 +397,18 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
         agent_decision = AgentDecision(
             decision_id=decision_id,
             intent=f"Process: {request.request[:50]}",
-            action_type="transaction" if "send" in request.request.lower() or "transfer" in request.request.lower() else "query",
-            parameters={"query": request.request, "risk_score": decision_result.get("risk_score", 0.5)},
-            reasoning=decision_result.get("reasoning", "Analyzed request and determined appropriate action"),
-            risk_score=decision_result.get("risk_score", 0.5),
-            estimated_cost=decision_result.get("estimated_cost", 0.001),
-            requires_approval=decision_result.get("risk_score", 0.5) > 0.5 or decision_result.get("requires_approval", False)
+            action_type="transaction" if is_transaction else "query",
+            parameters={
+                "query": request.request,
+                "risk_score": risk_score,
+                "planner_analysis": planner_result[:500],
+                "estimated_gas_cost": gas_cost_eth if is_transaction else 0.0,
+                "transaction_amount": transaction_amount if is_transaction else 0.0
+            },
+            reasoning=planner_response.reasoning,
+            risk_score=risk_score,
+            estimated_cost=estimated_cost,
+            requires_approval=risk_score > 0.6
         )
         
         # If high-risk, return decision for manual approval
@@ -345,6 +424,67 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
                 execution_time=execution_time,
                 agent_status=AgentStatus.WAITING
             )
+        
+        # Low-risk transaction - execute automatically using the executor agent
+        if is_transaction:
+            logger.info(f"Executing low-risk transaction: {decision_id}")
+            
+            executor = orchestrator.executor
+            
+            # Execute the transaction through the executor agent
+            executor_response = await executor.process(
+                decision_context,
+                additional_input=f"Execute this transaction based on planner's analysis: {planner_result[:200]}"
+            )
+            
+            if not executor_response.success:
+                execution_time = time.time() - start_time
+                return AgentResponse(
+                    success=False,
+                    message=f"Transaction execution failed: {executor_response.error}",
+                    decision=agent_decision,
+                    execution_time=execution_time,
+                    agent_status=AgentStatus.ERROR
+                )
+            
+            # Extract executor response and format it nicely
+            executor_result = executor_response.result.get('response', '')
+            
+            # Update decision with execution results
+            agent_decision.parameters["execution_result"] = {
+                "raw_response": executor_result,
+                "status": "executed",
+                "agent_response": executor_response.result
+            }
+            
+            # Format a structured message for the frontend
+            message = f"""**Transaction Executed Successfully**
+
+{executor_result}
+
+**Summary:**
+- Transaction submitted to blockchain
+- Decision ID: {decision_id}
+- Risk Level: {int(risk_score * 100)}%
+- Estimated Total Cost: {estimated_cost:.6f} ETH
+
+The transaction has been processed by the Executor agent and submitted to the blockchain. Check the execution details above for transaction hash and confirmation status."""
+            
+            agent_status = AgentStatus.IDLE
+            
+        else:
+            # Query/informational request - just return the planner's analysis
+            message = f"""**Request Processed**
+
+{planner_result}
+
+**Summary:**
+- Request Type: Informational Query
+- Decision ID: {decision_id}
+- Processing Time: {time.time() - start_time:.2f}s
+
+The Planner agent has analyzed your request and provided the response above."""
+            agent_status = AgentStatus.IDLE
         
         # Store in memory
         try:
@@ -366,10 +506,10 @@ async def process_agent_request(request: AgentRequest, background_tasks: Backgro
         
         return AgentResponse(
             success=True,
-            message="Request processed successfully by Planner agent",
+            message=message,
             decision=agent_decision,
             execution_time=execution_time,
-            agent_status=AgentStatus.IDLE
+            agent_status=agent_status
         )
         
     except Exception as e:

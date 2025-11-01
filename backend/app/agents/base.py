@@ -108,8 +108,16 @@ class BaseAgent(ABC):
         # This is simpler and works well for our use case where agents analyze and make decisions
         # rather than use tools extensively
         
+        # Get tool names for the system prompt
+        tool_names = ", ".join([tool.name for tool in self.tools]) if self.tools else "None"
+        
         # Create a simple prompt template for the agent
         system_prompt = self.get_system_prompt()
+        
+        # Format the system prompt with tool names if it has the placeholder
+        if "{tool_names}" in system_prompt:
+            system_prompt = system_prompt.replace("{tool_names}", tool_names)
+        
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history", optional=True),

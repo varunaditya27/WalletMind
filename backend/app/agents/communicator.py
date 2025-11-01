@@ -304,8 +304,8 @@ The question should be concise and easy to understand.
             if not has_amount:
                 missing.append("amount to send")
             
-            # Check for asset/token
-            tokens = ["eth", "ether", "usdc", "dai", "weth", "btc"]
+            # Check for asset/token (including network tokens like sepolia, testnet)
+            tokens = ["eth", "ether", "usdc", "dai", "weth", "btc", "sepolia", "testnet", "token"]
             has_asset = any(token in request_lower for token in tokens)
             if not has_asset:
                 missing.append("cryptocurrency asset")

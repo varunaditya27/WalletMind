@@ -511,6 +511,263 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error getting dashboard stats: {e}")
             raise
+    
+    async def get_audit_trail(
+        self,
+        wallet_address: str,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+        include_decisions: bool = True,
+        include_transactions: bool = True,
+        limit: int = 100
+    ) -> list:
+        """
+        Get audit trail for a wallet (FR-008).
+        
+        Args:
+            wallet_address: Wallet address
+            from_date: Start date filter
+            to_date: End date filter
+            include_decisions: Include decision records
+            include_transactions: Include transaction records
+            limit: Maximum number of entries
+            
+        Returns:
+            List of audit trail entries
+        """
+        try:
+            entries = []
+            
+            # Get wallet
+            wallet_repo = await self.wallets
+            wallet = await wallet_repo.find_by_address(wallet_address)
+            if not wallet:
+                logger.warning(f"Wallet not found: {wallet_address}")
+                return []
+            
+            # Get decisions if requested
+            if include_decisions:
+                decision_repo = await self.decisions
+                # Get agents for this wallet
+                agent_repo = await self.agents
+                agents = await agent_repo.find_by_wallet(wallet.id)
+                
+                for agent in agents:
+                    decisions = await decision_repo.find_by_agent(
+                        agent_id=agent.id,
+                        limit=limit
+                    )
+                    
+                    for decision in decisions:
+                        entry = {
+                            "type": "decision",
+                            "id": decision.id,
+                            "timestamp": decision.createdAt.isoformat() if decision.createdAt else None,
+                            "agent_type": agent.agentType,
+                            "action": decision.action,
+                            "reasoning": decision.reasoning,
+                            "status": decision.status,
+                            "confidence": decision.confidence,
+                            "decision_hash": decision.decisionHash,
+                            "on_chain_tx_hash": decision.onChainTxHash
+                        }
+                        
+                        # Apply date filters
+                        if from_date and decision.createdAt and decision.createdAt < from_date:
+                            continue
+                        if to_date and decision.createdAt and decision.createdAt > to_date:
+                            continue
+                            
+                        entries.append(entry)
+            
+            # Get transactions if requested
+            if include_transactions:
+                tx_repo = await self.transactions
+                transactions = await tx_repo.find_by_wallet(
+                    wallet_id=wallet.id,
+                    limit=limit
+                )
+                
+                for tx in transactions:
+                    entry = {
+                        "type": "transaction",
+                        "id": tx.id,
+                        "timestamp": tx.createdAt.isoformat() if tx.createdAt else None,
+                        "tx_hash": tx.txHash,
+                        "from_address": tx.fromAddress,
+                        "to_address": tx.toAddress,
+                        "value": str(tx.value),
+                        "status": tx.status,
+                        "gas_used": str(tx.gasUsed) if tx.gasUsed else None,
+                        "decision_id": tx.decisionId
+                    }
+                    
+                    # Apply date filters
+                    if from_date and tx.createdAt and tx.createdAt < from_date:
+                        continue
+                    if to_date and tx.createdAt and tx.createdAt > to_date:
+                        continue
+                        
+                    entries.append(entry)
+            
+            # Sort by timestamp (newest first)
+            entries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            
+            # Apply limit
+            entries = entries[:limit]
+            
+            logger.info(f"Retrieved {len(entries)} audit trail entries for {wallet_address}")
+            return entries
+        
+        except Exception as e:
+            logger.error(f"Error getting audit trail: {e}")
+            raise
+    
+    async def get_agent_activity(
+        self,
+        agent_type: str,
+        limit: int = 100
+    ) -> list:
+        """
+        Get activity log for a specific agent type.
+        
+        Args:
+            agent_type: Agent type (planner, executor, evaluator, communicator)
+            limit: Maximum number of activities
+            
+        Returns:
+            List of agent activities
+        """
+        try:
+            activities = []
+            
+            # Get all agents of this type
+            agent_repo = await self.agents
+            db = await self._get_db()
+            
+            # Query agents by type
+            agents = await db.agent.find_many(
+                where={"agentType": agent_type.upper()},
+                take=50  # Limit number of agents
+            )
+            
+            if not agents:
+                logger.info(f"No agents found for type: {agent_type}")
+                return []
+            
+            # Get decisions for each agent
+            decision_repo = await self.decisions
+            for agent in agents:
+                decisions = await decision_repo.find_by_agent(
+                    agent_id=agent.id,
+                    limit=limit // len(agents) if len(agents) > 0 else limit
+                )
+                
+                for decision in decisions:
+                    activity = {
+                        "agent_id": agent.id,
+                        "agent_type": agent.agentType,
+                        "wallet_id": agent.walletId,
+                        "decision_id": decision.id,
+                        "action": decision.action,
+                        "reasoning": decision.reasoning[:200] if decision.reasoning else None,  # Truncate
+                        "confidence": decision.confidence,
+                        "status": decision.status,
+                        "timestamp": decision.createdAt.isoformat() if decision.createdAt else None,
+                        "executed_at": decision.executedAt.isoformat() if decision.executedAt else None,
+                        "on_chain_tx_hash": decision.onChainTxHash
+                    }
+                    activities.append(activity)
+            
+            # Sort by timestamp (newest first)
+            activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            
+            # Apply limit
+            activities = activities[:limit]
+            
+            logger.info(f"Retrieved {len(activities)} activities for agent type {agent_type}")
+            return activities
+        
+        except Exception as e:
+            logger.error(f"Error getting agent activity: {e}")
+            raise
+    
+    async def get_wallet_timeline(
+        self,
+        wallet_address: str,
+        limit: int = 50
+    ) -> list:
+        """
+        Get chronological timeline of wallet activities.
+        
+        Args:
+            wallet_address: Wallet address
+            limit: Maximum number of events
+            
+        Returns:
+            List of timeline events
+        """
+        try:
+            # Get wallet
+            wallet_repo = await self.wallets
+            wallet = await wallet_repo.find_by_address(wallet_address)
+            if not wallet:
+                logger.warning(f"Wallet not found: {wallet_address}")
+                return []
+            
+            timeline = []
+            
+            # Get transactions
+            tx_repo = await self.transactions
+            transactions = await tx_repo.find_by_wallet(
+                wallet_id=wallet.id,
+                limit=limit
+            )
+            
+            for tx in transactions:
+                timeline.append({
+                    "type": "transaction",
+                    "timestamp": tx.createdAt.isoformat() if tx.createdAt else None,
+                    "tx_hash": tx.txHash,
+                    "from": tx.fromAddress,
+                    "to": tx.toAddress,
+                    "value": str(tx.value),
+                    "status": tx.status
+                })
+            
+            # Get agent activities
+            agent_repo = await self.agents
+            agents = await agent_repo.find_by_wallet(wallet.id)
+            
+            decision_repo = await self.decisions
+            for agent in agents:
+                decisions = await decision_repo.find_by_agent(
+                    agent_id=agent.id,
+                    limit=limit // len(agents) if len(agents) > 0 else limit
+                )
+                
+                for decision in decisions:
+                    timeline.append({
+                        "type": "decision",
+                        "timestamp": decision.createdAt.isoformat() if decision.createdAt else None,
+                        "agent_type": agent.agentType,
+                        "action": decision.action,
+                        "status": decision.status,
+                        "confidence": decision.confidence
+                    })
+            
+            # Sort by timestamp (newest first)
+            timeline.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            
+            # Apply limit
+            timeline = timeline[:limit]
+            
+            logger.info(f"Retrieved timeline with {len(timeline)} events for {wallet_address}")
+            return timeline
+        
+        except Exception as e:
+            logger.error(f"Error getting wallet timeline: {e}")
+            raise
 
 
 # Global service instance

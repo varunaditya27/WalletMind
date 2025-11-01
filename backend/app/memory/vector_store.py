@@ -107,12 +107,31 @@ class MemoryService:
             ID of the stored memory
         """
         try:
+            # Prepare response for serialization (handle datetime objects)
+            if isinstance(response, dict):
+                # Convert datetime objects to ISO format strings
+                serializable_response = {}
+                for key, value in response.items():
+                    if isinstance(value, datetime):
+                        serializable_response[key] = value.isoformat()
+                    elif isinstance(value, dict):
+                        # Recursively handle nested dicts
+                        serializable_response[key] = {
+                            k: v.isoformat() if isinstance(v, datetime) else v
+                            for k, v in value.items()
+                        }
+                    else:
+                        serializable_response[key] = value
+                response_str = json.dumps(serializable_response)
+            else:
+                response_str = str(response)
+            
             # Prepare document content
             content = f"""
 Agent: {agent_type}
 Wallet: {wallet_address}
 Request: {request}
-Response: {json.dumps(response) if isinstance(response, dict) else str(response)}
+Response: {response_str}
 Reasoning: {reasoning}
 Timestamp: {timestamp.isoformat()}
 """

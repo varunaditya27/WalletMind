@@ -24,7 +24,7 @@ class LLMConfig(BaseSettings):
     groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
     google_api_key: str = Field(default="", validation_alias="GOOGLE_API_KEY")
     provider: str = Field(default="groq", validation_alias="LLM_PROVIDER")
-    model: str = Field(default="mixtral-8x7b-32768", validation_alias="LLM_MODEL")
+    model: str = Field(default="llama-3.3-70b-versatile", validation_alias="LLM_MODEL")
     temperature: float = Field(default=0.7, validation_alias="LLM_TEMPERATURE")
     max_tokens: int = Field(default=2048, validation_alias="LLM_MAX_TOKENS")
 

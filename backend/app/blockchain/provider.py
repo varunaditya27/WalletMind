@@ -43,7 +43,10 @@ class Web3Provider:
     - Health monitoring
     - Request statistics
     - Network switching
+    - Singleton pattern for shared instance
     """
+    
+    _instance: Optional['Web3Provider'] = None
     
     def __init__(self):
         """Initialize Web3Provider with empty connection pool"""
@@ -51,6 +54,18 @@ class Web3Provider:
         self._stats: Dict[NetworkType, ConnectionStats] = {}
         self._current_network: Optional[NetworkType] = None
         logger.info("Web3Provider initialized")
+    
+    @classmethod
+    def get_instance(cls) -> 'Web3Provider':
+        """
+        Get singleton instance of Web3Provider.
+        
+        Returns:
+            Shared Web3Provider instance
+        """
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
     
     def connect(
         self,
